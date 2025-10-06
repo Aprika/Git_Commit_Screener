@@ -14,7 +14,7 @@ import sys
 # pip install -r requirements.txt
 
 # TODO: Make sure that the command line input functions similarly to example provided below
-# git_screener.py --repo <path|url> --n <commits> --out report.json
+# python ./git_screener.py --repo <path|url> --n <commits> --out report.json
 
 
 # Initializing arguments that can be recognized by parser
@@ -63,5 +63,5 @@ def threat_analysis(repo_link, n, out):
 if __name__ == "__main__":
     # TODO: Make sure that the inputs provided by user cannot break the program (Error messages to catch cases and ask to try again?)
     # Parse all arguments entered in command line
-    repo_name, num, output_file = parser.parse_args(sys.argv[1:])
-    threat_analysis(repo_name, num, output_file)
+    args = parser.parse_args(sys.argv[1:])
+    threat_analysis(args.repo, args.n, args.out)
