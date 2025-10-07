@@ -46,23 +46,21 @@ def threat_analysis(repo_link, n, out):
     # Debug: Print all selected commits to see what we're working with
     # Storing last n commits from all branches
     last_n_commits = repo.iter_commits(all=True, max_count=n)
+
     commit_messages = [commit.message for commit in last_n_commits]
-    print(f"Commit messages: {commit_messages}")
 
     # TODO: Properly implement diff extraction
     # TODO: Make sure there are no "out of range" errors!
-    # Diff data code (Copied from the "Compare commit to commit" section)
-    comp_commits = list(repo.iter_commits(all=True))[1:n]
-    # diffs = repo.head.commit.diff()
-    diffs_to_parent = [b.diff(a) for a, b in zip(last_n_commits, comp_commits)]
-    print(f"Diffs: {diffs_to_parent}")
+    n_commit_list = list(repo.iter_commits(all=True))[:n]
+    comp_commits = list(repo.iter_commits(all=True))[1:n+1]
+    commit_pairs = list(zip(n_commit_list, comp_commits))
 
-    """
-    for d in diffs:
-        print(d.a_path)
-    """
-
-
+    diffs_to_parent = [b.diff(a) for a, b in commit_pairs]
+    for diff in diffs_to_parent:
+        for diff_item in diff.iter_change_type("A"):
+            print("Added file:\n{}".format(diff_item.a_blob.data_stream.read().decode('utf-8')))
+        for diff_item in diff.iter_change_type("M"):
+            print("Modified file:\n{}".format(diff_item.a_blob.data_stream.read().decode('utf-8')))
 
 
     # TODO: Create a good prompt for finding issues (Llama Guard maybe?)
