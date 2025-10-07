@@ -1,6 +1,6 @@
 from git import Repo
 from huggingface_hub import login
-from pathlib import PurePath, PureWindowsPath
+from pathlib import Path, PurePath, PureWindowsPath
 import argparse
 import json
 import os
@@ -41,7 +41,8 @@ def threat_analysis(repo_link, n, out):
         repo = Repo(repo_link)
     else:
         # TODO: Add if/else to handle path types of different operating systems
-        repo = Repo.clone_from(repo_link, PureWindowsPath(os.path.dirname(os.getcwd()), "New_Repo"))
+        cwd = Path.cwd()
+        repo = Repo.clone_from(repo_link, cwd.parent / "New_Repo")
 
     # Debug: Print all selected commits to see what we're working with
     print(repo.head)
