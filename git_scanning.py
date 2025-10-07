@@ -40,13 +40,30 @@ def threat_analysis(repo_link, n, out):
     if check_if_path(repo_link):
         repo = Repo(repo_link)
     else:
-        # TODO: Add if/else to handle path types of different operating systems
         cwd = Path.cwd()
         repo = Repo.clone_from(repo_link, cwd.parent / "New_Repo")
 
     # Debug: Print all selected commits to see what we're working with
-    print(repo.head)
-    print(repo.tags)
+    # Storing last n commits from all branches
+    last_n_commits = repo.iter_commits(all=True, max_count=n)
+    commit_messages = [commit.message for commit in last_n_commits]
+    print(f"Commit messages: {commit_messages}")
+
+    # TODO: Properly implement diff extraction
+    # TODO: Make sure there are no "out of range" errors!
+    # Diff data code (Copied from the "Compare commit to commit" section)
+    comp_commits = list(repo.iter_commits(all=True))[1:n]
+    # diffs = repo.head.commit.diff()
+    diffs_to_parent = [b.diff(a) for a, b in zip(last_n_commits, comp_commits)]
+    print(f"Diffs: {diffs_to_parent}")
+
+    """
+    for d in diffs:
+        print(d.a_path)
+    """
+
+
+
 
     # TODO: Create a good prompt for finding issues (Llama Guard maybe?)
 
