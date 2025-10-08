@@ -1,0 +1,1693 @@
+"char/tpm: Fix unitialized usage of data buffer
+
+This patch fixes information leakage to the userspace by initializing
+the data buffer to zero.
+
+Reported-by: Peter Huewe <huewe.external@infineon.com>
+Signed-off-by: Peter Huewe <huewe.external@infineon.com>
+Signed-off-by: Marcel Selhorst <m.selhorst@sirrix.com>
+[ Also removed the silly ""* sizeof(u8)"".  If that isn't 1, we have way
+  deeper problems than a simple multiplication can fix.   - Linus ]
+Signed-off-by: Linus Torvalds <torvalds@linux-foundation.org>","{'added': [(983, '\tchip->data_buffer = kzalloc(TPM_BUFSIZE, GFP_KERNEL);')], 'deleted': [(983, '\tchip->data_buffer = kmalloc(TPM_BUFSIZE * sizeof(u8), GFP_KERNEL);')]}"
+"staging: comedi: fix infoleak to userspace
+
+driver_name and board_name are pointers to strings, not buffers of size
+COMEDI_NAMELEN.  Copying COMEDI_NAMELEN bytes of a string containing
+less than COMEDI_NAMELEN-1 bytes would leak some unrelated bytes.
+
+Signed-off-by: Vasiliy Kulikov <segoon@openwall.com>
+Cc: stable <stable@kernel.org>
+Signed-off-by: Greg Kroah-Hartman <gregkh@suse.de>","{'added': [(386, '\tstrlcpy(devinfo.driver_name, dev->driver->driver_name, COMEDI_NAMELEN);'), (387, '\tstrlcpy(devinfo.board_name, dev->board_name, COMEDI_NAMELEN);')], 'deleted': [(386, '\tmemcpy(devinfo.driver_name, dev->driver->driver_name, COMEDI_NAMELEN);'), (387, '\tmemcpy(devinfo.board_name, dev->board_name, COMEDI_NAMELEN);')]}"
+"xfrm_user: fix info leak in copy_to_user_auth()
+
+copy_to_user_auth() fails to initialize the remainder of alg_name and
+therefore discloses up to 54 bytes of heap memory via netlink to
+userland.
+
+Use strncpy() instead of strcpy() to fill the trailing bytes of alg_name
+with null bytes.
+
+Signed-off-by: Mathias Krause <minipli@googlemail.com>
+Acked-by: Steffen Klassert <steffen.klassert@secunet.com>
+Signed-off-by: David S. Miller <davem@davemloft.net>","{'added': [(745, '\tstrncpy(algo->alg_name, auth->alg_name, sizeof(algo->alg_name));')], 'deleted': [(745, '\tstrcpy(algo->alg_name, auth->alg_name);')]}"
+"llc: fix info leak via getsockname()
+
+The LLC code wrongly returns 0, i.e. ""success"", when the socket is
+zapped. Together with the uninitialized uaddrlen pointer argument from
+sys_getsockname this leads to an arbitrary memory leak of up to 128
+bytes kernel stack via the getsockname() syscall.
+
+Return an error instead when the socket is zapped to prevent the info
+leak. Also remove the unnecessary memset(0). We don't directly write to
+the memory pointed by uaddr but memcpy() a local structure at the end of
+the function that is properly initialized.
+
+Signed-off-by: Mathias Krause <minipli@googlemail.com>
+Cc: Arnaldo Carvalho de Melo <acme@ghostprotocols.net>
+Signed-off-by: David S. Miller <davem@davemloft.net>","{'added': [(972, '\tint rc = -EBADF;')], 'deleted': [(972, '\tint rc = 0;'), (979, '\tmemset(uaddr, 0, *uaddrlen);')]}"
+"Bluetooth: RFCOMM - Fix info leak in ioctl(RFCOMMGETDEVLIST)
+
+The RFCOMM code fails to initialize the two padding bytes of struct
+rfcomm_dev_list_req inserted for alignment before copying it to
+userland. Additionally there are two padding bytes in each instance of
+struct rfcomm_dev_info. The ioctl() that for disclosures two bytes plus
+dev_num times two bytes uninitialized kernel heap memory.
+
+Allocate the memory using kzalloc() to fix this issue.
+
+Signed-off-by: Mathias Krause <minipli@googlemail.com>
+Cc: Marcel Holtmann <marcel@holtmann.org>
+Cc: Gustavo Padovan <gustavo@padovan.org>
+Cc: Johan Hedberg <johan.hedberg@gmail.com>
+Signed-off-by: David S. Miller <davem@davemloft.net>","{'added': [(459, '\tdl = kzalloc(size, GFP_KERNEL);')], 'deleted': [(459, '\tdl = kmalloc(size, GFP_KERNEL);')]}"
+"net/tun: fix ioctl() based info leaks
+
+The tun module leaks up to 36 bytes of memory by not fully initializing
+a structure located on the stack that gets copied to user memory by the
+TUNGETIFF and SIOCGIFHWADDR ioctl()s.
+
+Signed-off-by: Mathias Krause <minipli@googlemail.com>
+Signed-off-by: David S. Miller <davem@davemloft.net>","{'added': [(1382, '\tif (cmd == TUNSETIFF || _IOC_TYPE(cmd) == 0x89) {'), (1385, '\t} else'), (1386, '\t\tmemset(&ifr, 0, sizeof(ifr));')], 'deleted': [(1382, '\tif (cmd == TUNSETIFF || _IOC_TYPE(cmd) == 0x89)')]}"
+"Remove Swift location/password from messages.
+
+Updates several exceptions and log messages in the Swift backend
+so that they don't include Swift location URI's which may contain
+passwords when used in Swift single tenant mode.
+
+Fixes LP Bug #1098962.
+
+Change-Id: I458de58563343347d5c976fe1ad084cc7e3280eb","{'added': [(139, '            LOG.debug(_(""Invalid store URI: %(reason)s"") % locals())'), (165, '                reason = (_(""Badly formed credentials in Swift URI.""))'), (183, '            reason = _(""Badly formed Swift URI."")'), (243, '                msg = _(""Swift could not find image at URI."")'), (244, '                raise exception.NotFound(msg)'), (377, '                                            ""this location""))'), (420, '                msg = _(""Swift could not find image at URI."")'), (421, '                raise exception.NotFound(msg)'), (579, '                msg = _(""Swift could not find image at URI."")'), (580, '                raise exception.NotFound(msg)')], 'deleted': [(139, '            LOG.debug(_(""Invalid store uri %(uri)s: %(reason)s"") % locals())'), (165, '                reason = (_(""Badly formed credentials \'%(creds)s\' in Swift ""'), (166, '                            ""URI"") % locals())'), (184, '            reason = _(""Badly formed Swift URI: %s"") % uri'), (244, '                raise exception.NotFound(_(""Swift could not find image at ""'), (245, '                                           ""uri %(uri)s"") % locals())'), (378, '                                            ""location %s"") %'), (379, '                                          location.get_uri())'), (422, '                raise exception.NotFound(_(""Swift could not find image at ""'), (423, '                                           ""uri %(uri)s"") % locals())'), (581, '                raise exception.NotFound(_(""Swift could not find image at ""'), (582, '                                           ""uri %(uri)s"") % locals())')]}"
+"Bluetooth: Fix incorrect strncpy() in hidp_setup_hid()
+
+The length parameter should be sizeof(req->name) - 1 because there is no
+guarantee that string provided by userspace will contain the trailing
+'\0'.
+
+Can be easily reproduced by manually setting req->name to 128 non-zero
+bytes prior to ioctl(HIDPCONNADD) and checking the device name setup on
+input subsystem:
+
+$ cat /sys/devices/pnp0/00\:04/tty/ttyS0/hci0/hci0\:1/input8/name
+AAAAAA[...]AAAAAAAAf0:af:f0:af:f0:af
+
+(""f0:af:f0:af:f0:af"" is the device bluetooth address, taken from ""phys""
+field in struct hid_device due to overflow.)
+
+Cc: stable@vger.kernel.org
+Signed-off-by: Anderson Lizardo <anderson.lizardo@openbossa.org>
+Acked-by: Marcel Holtmann <marcel@holtmann.org>
+Signed-off-by: Gustavo Padovan <gustavo.padovan@collabora.co.uk>","{'added': [(934, '\tstrncpy(hid->name, req->name, sizeof(req->name) - 1);')], 'deleted': [(934, '\tstrncpy(hid->name, req->name, 128);')]}"
+"cookie: fix tailmatching to prevent cross-domain leakage
+
+Cookies set for 'example.com' could accidentaly also be sent by libcurl
+to the 'bexample.com' (ie with a prefix to the first domain name).
+
+This is a security vulnerabilty, CVE-2013-1944.
+
+Bug: http://curl.haxx.se/docs/adv_20130412.html","{'added': [(121, 'static bool tailmatch(const char *cooke_domain, const char *hostname)'), (123, '  size_t cookie_domain_len = strlen(cooke_domain);'), (124, '  size_t hostname_len = strlen(hostname);'), (126, '  if(hostname_len < cookie_domain_len)'), (129, '  if(!Curl_raw_equal(cooke_domain, hostname+hostname_len-cookie_domain_len))'), (130, '    return FALSE;'), (131, ''), (132, ""  /* A lead char of cookie_domain is not '.'.""), (133, '     RFC6265 4.1.2.3. The Domain Attribute says:'), (134, '       For example, if the value of the Domain attribute is'), (135, '       ""example.com"", the user agent will include the cookie in the Cookie'), (136, '       header when making HTTP requests to example.com, www.example.com, and'), (137, '       www.corp.example.com.'), (138, '   */'), (139, '  if(hostname_len == cookie_domain_len)'), (140, '    return TRUE;'), (141, ""  if('.' == *(hostname + hostname_len - cookie_domain_len - 1))""), (142, '    return TRUE;'), (143, '  return FALSE;')], 'deleted': [(121, 'static bool tailmatch(const char *little, const char *bigone)'), (123, '  size_t littlelen = strlen(little);'), (124, '  size_t biglen = strlen(bigone);'), (126, '  if(littlelen > biglen)'), (129, '  return Curl_raw_equal(little, bigone+biglen-littlelen) ? TRUE : FALSE;')]}"
+"Bluetooth: fix possible info leak in bt_sock_recvmsg()
+
+In case the socket is already shutting down, bt_sock_recvmsg() returns
+with 0 without updating msg_namelen leading to net/socket.c leaking the
+local, uninitialized sockaddr_storage variable to userland -- 128 bytes
+of kernel stack memory.
+
+Fix this by moving the msg_namelen assignment in front of the shutdown
+test.
+
+Cc: Marcel Holtmann <marcel@holtmann.org>
+Cc: Gustavo Padovan <gustavo@padovan.org>
+Cc: Johan Hedberg <johan.hedberg@gmail.com>
+Signed-off-by: Mathias Krause <minipli@googlemail.com>
+Signed-off-by: David S. Miller <davem@davemloft.net>","{'added': [(233, '\tmsg->msg_namelen = 0;'), (234, '')], 'deleted': [(240, '\tmsg->msg_namelen = 0;'), (241, '')]}"
+"netrom: fix invalid use of sizeof in nr_recvmsg()
+
+sizeof() when applied to a pointer typed expression gives the size of the
+pointer, not that of the pointed data.
+Introduced by commit 3ce5ef(netrom: fix info leak via msg_name in nr_recvmsg)
+
+Signed-off-by: Wei Yongjun <yongjun_wei@trendmicro.com.cn>
+Signed-off-by: David S. Miller <davem@davemloft.net>","{'added': [(1176, '\t\tmemset(sax, 0, sizeof(*sax));')], 'deleted': [(1176, '\t\tmemset(sax, 0, sizeof(sax));')]}"
+"VSOCK: vmci - fix possible info leak in vmci_transport_dgram_dequeue()
+
+In case we received no data on the call to skb_recv_datagram(), i.e.
+skb->data is NULL, vmci_transport_dgram_dequeue() will return with 0
+without updating msg_namelen leading to net/socket.c leaking the local,
+uninitialized sockaddr_storage variable to userland -- 128 bytes of
+kernel stack memory.
+
+Fix this by moving the already existing msg_namelen assignment a few
+lines above.
+
+Cc: Andy King <acking@vmware.com>
+Cc: Dmitry Torokhov <dtor@vmware.com>
+Cc: George Zhang <georgezhang@vmware.com>
+Signed-off-by: Mathias Krause <minipli@googlemail.com>
+Signed-off-by: David S. Miller <davem@davemloft.net>","{'added': [(1739, '\tmsg->msg_namelen = 0;'), (1740, '')], 'deleted': [(1771, '\tmsg->msg_namelen = 0;')]}"
+"dm snapshot: fix data corruption
+
+This patch fixes a particular type of data corruption that has been
+encountered when loading a snapshot's metadata from disk.
+
+When we allocate a new chunk in persistent_prepare, we increment
+ps->next_free and we make sure that it doesn't point to a metadata area
+by further incrementing it if necessary.
+
+When we load metadata from disk on device activation, ps->next_free is
+positioned after the last used data chunk. However, if this last used
+data chunk is followed by a metadata area, ps->next_free is positioned
+erroneously to the metadata area. A newly-allocated chunk is placed at
+the same location as the metadata area, resulting in data or metadata
+corruption.
+
+This patch changes the code so that ps->next_free skips the metadata
+area when metadata are loaded in function read_exceptions.
+
+The patch also moves a piece of code from persistent_prepare_exception
+to a separate function skip_metadata to avoid code duplication.
+
+CVE-2013-4299
+
+Signed-off-by: Mikulas Patocka <mpatocka@redhat.com>
+Cc: stable@vger.kernel.org
+Cc: Mike Snitzer <snitzer@redhat.com>
+Signed-off-by: Alasdair G Kergon <agk@redhat.com>","{'added': [(272, 'static void skip_metadata(struct pstore *ps)'), (273, '{'), (274, '\tuint32_t stride = ps->exceptions_per_area + 1;'), (275, '\tchunk_t next_free = ps->next_free;'), (276, '\tif (sector_div(next_free, stride) == NUM_SNAPSHOT_HDR_CHUNKS)'), (277, '\t\tps->next_free++;'), (278, '}'), (279, ''), (513, '\tskip_metadata(ps);'), (514, ''), (641, '\tps->next_free++;'), (642, '\tskip_metadata(ps);')], 'deleted': [(619, '\tuint32_t stride;'), (620, '\tchunk_t next_free;'), (633, '\tstride = (ps->exceptions_per_area + 1);'), (634, '\tnext_free = ++ps->next_free;'), (635, '\tif (sector_div(next_free, stride) == 1)'), (636, '\t\tps->next_free++;')]}"
+"Staging: sb105x: info leak in mp_get_count()
+
+The icount.reserved[] array isn't initialized so it leaks stack
+information to userspace.
+
+Reported-by: Nico Golde <nico@ngolde.de>
+Reported-by: Fabian Yamaguchi <fabs@goesec.de>
+Signed-off-by: Dan Carpenter <dan.carpenter@oracle.com>
+Cc: stable@kernel.org
+Signed-off-by: Linus Torvalds <torvalds@linux-foundation.org>","{'added': [(1066, '\tstruct serial_icounter_struct icount = {};')], 'deleted': [(1066, '\tstruct serial_icounter_struct icount;')]}"
+"Prevent Special:Contributions from indicating that an IP address is autoblocked
+
+If an IP address was autoblocked in the userlinks, sysops would see
+""change block"" and ""unblock"", indicating that the IP is autoblocked.
+
+Now Special:Contributions will only display ""change block"" if the user
+is blocked and the block type is not Block::TYPE_AUTO. This is the same
+check which is used above when deciding whether to display the
+block log extract.
+
+Bug: 46457
+Change-Id: I43047059cb67527d5296322ac17fe798db917bec","{'added': [(301, '\t\t\t\tif ( $target->isBlocked() && $target->getBlock()->getType() != Block::TYPE_AUTO ) {')], 'deleted': [(301, '\t\t\t\tif ( $target->isBlocked() ) {')]}"
+"netfilter: nf_nat: fix access to uninitialized buffer in IRC NAT helper
+
+Commit 5901b6be885e attempted to introduce IPv6 support into
+IRC NAT helper. By doing so, the following code seemed to be removed
+by accident:
+
+  ip = ntohl(exp->master->tuplehash[IP_CT_DIR_REPLY].tuple.dst.u3.ip);
+  sprintf(buffer, ""%u %u"", ip, port);
+  pr_debug(""nf_nat_irc: inserting '%s' == %pI4, port %u\n"", buffer, &ip, port);
+
+This leads to the fact that buffer[] was left uninitialized and
+contained some stack value. When we call nf_nat_mangle_tcp_packet(),
+we call strlen(buffer) on excatly this uninitialized buffer. If we
+are unlucky and the skb has enough tailroom, we overwrite resp. leak
+contents with values that sit on our stack into the packet and send
+that out to the receiver.
+
+Since the rather informal DCC spec [1] does not seem to specify
+IPv6 support right now, we log such occurences so that admins can
+act accordingly, and drop the packet. I've looked into XChat source,
+and IPv6 is not supported there: addresses are in u32 and print
+via %u format string.
+
+Therefore, restore old behaviour as in IPv4, use snprintf(). The
+IRC helper does not support IPv6 by now. By this, we can safely use
+strlen(buffer) in nf_nat_mangle_tcp_packet() and prevent a buffer
+overflow. Also simplify some code as we now have ct variable anyway.
+
+  [1] http://www.irchelp.org/irchelp/rfc/ctcpspec.html
+
+Fixes: 5901b6be885e (""netfilter: nf_nat: support IPv6 in IRC NAT helper"")
+Signed-off-by: Daniel Borkmann <dborkman@redhat.com>
+Cc: Harald Welte <laforge@gnumonks.org>
+Signed-off-by: Pablo Neira Ayuso <pablo@netfilter.org>","{'added': [(37, '\tstruct nf_conn *ct = exp->master;'), (38, '\tunion nf_inet_addr newaddr;'), (43, '\tnewaddr = ct->tuplehash[IP_CT_DIR_REPLY].tuple.dst.u3;'), (44, ''), (64, '\t\tnf_ct_helper_log(skb, ct, ""all ports in use"");'), (68, '\t/* strlen(""\\1DCC CHAT chat AAAAAAAA P\\1\\n"")=27'), (69, '\t * strlen(""\\1DCC SCHAT chat AAAAAAAA P\\1\\n"")=28'), (70, '\t * strlen(""\\1DCC SEND F AAAAAAAA P S\\1\\n"")=26'), (71, '\t * strlen(""\\1DCC MOVE F AAAAAAAA P S\\1\\n"")=26'), (72, '\t * strlen(""\\1DCC TSEND F AAAAAAAA P S\\1\\n"")=27'), (73, '\t *'), (74, '\t * AAAAAAAAA: bound addr (1.0.0.0==16777216, min 8 digits,'), (75, '\t *                        255.255.255.255==4294967296, 10 digits)'), (76, '\t * P:         bound port (min 1 d, max 5d (65635))'), (77, '\t * F:         filename   (min 1 d )'), (78, '\t * S:         size       (min 1 d )'), (79, '\t * 0x01, \\n:  terminators'), (80, '\t */'), (81, '\t/* AAA = ""us"", ie. where server normally talks to. */'), (82, '\tsnprintf(buffer, sizeof(buffer), ""%u %u"", ntohl(newaddr.ip), port);'), (83, '\tpr_debug(""nf_nat_irc: inserting \'%s\' == %pI4, port %u\\n"",'), (84, '\t\t buffer, &newaddr.ip, port);'), (85, ''), (86, '\tret = nf_nat_mangle_tcp_packet(skb, ct, ctinfo, protoff, matchoff,'), (87, '\t\t\t\t       matchlen, buffer, strlen(buffer));'), (89, '\t\tnf_ct_helper_log(skb, ct, ""cannot mangle packet"");'), (92, '')], 'deleted': [(60, '\t\tnf_ct_helper_log(skb, exp->master, ""all ports in use"");'), (64, '\tret = nf_nat_mangle_tcp_packet(skb, exp->master, ctinfo,'), (65, '\t\t\t\t       protoff, matchoff, matchlen, buffer,'), (66, '\t\t\t\t       strlen(buffer));'), (68, '\t\tnf_ct_helper_log(skb, exp->master, ""cannot mangle packet"");')]}"
+"floppy: don't write kernel-only members to FDRAWCMD ioctl output
+
+Do not leak kernel-only floppy_raw_cmd structure members to userspace.
+This includes the linked-list pointer and the pointer to the allocated
+DMA space.
+
+Signed-off-by: Matthew Daley <mattd@bugfuzz.com>
+Signed-off-by: Linus Torvalds <torvalds@linux-foundation.org>","{'added': [(3070, '\t\tstruct floppy_raw_cmd cmd = *ptr;'), (3071, '\t\tcmd.next = NULL;'), (3072, '\t\tcmd.kernel_data = NULL;'), (3073, '\t\tret = copy_to_user(param, &cmd, sizeof(cmd));')], 'deleted': [(3070, '\t\tret = copy_to_user(param, ptr, sizeof(*ptr));')]}"
+"nfs: always make sure page is up-to-date before extending a write to cover the entire page
+
+We should always make sure the cached page is up-to-date when we're
+determining whether we can extend a write to cover the full page -- even
+if we've received a write delegation from the server.
+
+Commit c7559663 added logic to skip this check if we have a write
+delegation, which can lead to data corruption such as the following
+scenario if client B receives a write delegation from the NFS server:
+
+Client A:
+    # echo 123456789 > /mnt/file
+
+Client B:
+    # echo abcdefghi >> /mnt/file
+    # cat /mnt/file
+    0�D0�abcdefghi
+
+Just because we hold a write delegation doesn't mean that we've read in
+the entire page contents.
+
+Cc: <stable@vger.kernel.org> # v3.11+
+Signed-off-by: Scott Mayhew <smayhew@redhat.com>
+Signed-off-by: Trond Myklebust <trond.myklebust@primarydata.com>","{'added': [(925, ' * If the file is opened for synchronous writes then we can just skip the rest'), (926, ' * of the checks.'), (932, '\tif (!nfs_write_pageuptodate(page, inode))'), (933, '\t\treturn 0;'), (936, '\tif (inode->i_flock == NULL || (inode->i_flock->fl_start == 0 &&'), (938, '\t\t\tinode->i_flock->fl_type != F_RDLCK))')], 'deleted': [(925, ' * If the file is opened for synchronous writes or if we have a write delegation'), (926, ' * from the server then we can just skip the rest of the checks.'), (934, '\tif (nfs_write_pageuptodate(page, inode) && (inode->i_flock == NULL ||'), (935, '\t\t\t(inode->i_flock->fl_start == 0 &&'), (937, '\t\t\tinode->i_flock->fl_type != F_RDLCK)))')]}"
+[FIXED SECURITY-79] Prevent (private security realm) usernames from being guessed.,"{'added': [(81, 'import java.util.MissingResourceException;'), (82, 'import java.util.ResourceBundle;'), (178, '        if (!u.isPasswordCorrect(password)) {'), (179, '            String message;'), (180, '            try {'), (181, '                message = ResourceBundle.getBundle(""org.acegisecurity.messages"").getString(""AbstractUserDetailsAuthenticationProvider.badCredentials"");'), (182, '            } catch (MissingResourceException x) {'), (183, '                message = ""Bad credentials"";'), (184, '            }'), (185, '            throw new BadCredentialsException(message);'), (186, '        }')], 'deleted': [(176, '        if (!u.isPasswordCorrect(password))'), (177, '            throw new BadCredentialsException(""Failed to login as ""+username);')]}"
+"target/rd: Refactor rd_build_device_space + rd_release_device_space
+
+This patch refactors rd_build_device_space() + rd_release_device_space()
+into rd_allocate_sgl_table() + rd_release_device_space() so that they
+may be used seperatly for setup + release of protection information
+scatterlists.
+
+Also add explicit memset of pages within rd_allocate_sgl_table() based
+upon passed 'init_payload' value.
+
+v2 changes:
+  - Drop unused sg_table from rd_release_device_space (Wei)
+
+Cc: Martin K. Petersen <martin.petersen@oracle.com>
+Cc: Christoph Hellwig <hch@lst.de>
+Cc: Hannes Reinecke <hare@suse.de>
+Cc: Sagi Grimberg <sagig@mellanox.com>
+Cc: Or Gerlitz <ogerlitz@mellanox.com>
+Signed-off-by: Nicholas Bellinger <nab@linux-iscsi.org>","{'added': [(81, 'static u32 rd_release_sgl_table(struct rd_dev *rd_dev, struct rd_dev_sg_table *sg_table,'), (82, '\t\t\t\t u32 sg_table_count)'), (86, '\tu32 i, j, page_count = 0, sg_per_table;'), (88, '\tfor (i = 0; i < sg_table_count; i++) {'), (102, '\tkfree(sg_table);'), (103, '\treturn page_count;'), (104, '}'), (105, ''), (106, 'static void rd_release_device_space(struct rd_dev *rd_dev)'), (107, '{'), (108, '\tu32 page_count;'), (109, ''), (110, '\tif (!rd_dev->sg_table_array || !rd_dev->sg_table_count)'), (111, '\t\treturn;'), (112, ''), (113, '\tpage_count = rd_release_sgl_table(rd_dev, rd_dev->sg_table_array,'), (114, '\t\t\t\t\t  rd_dev->sg_table_count);'), (115, ''), (130, 'static int rd_allocate_sgl_table(struct rd_dev *rd_dev, struct rd_dev_sg_table *sg_table,'), (131, '\t\t\t\t u32 total_sg_needed, unsigned char init_payload)'), (133, '\tu32 i = 0, j, page_offset = 0, sg_per_table;'), (138, '\tunsigned char *p;'), (169, ''), (170, '\t\t\tp = kmap(pg);'), (171, '\t\t\tmemset(p, init_payload, PAGE_SIZE);'), (172, '\t\t\tkunmap(pg);'), (179, '\treturn 0;'), (180, '}'), (181, ''), (182, 'static int rd_build_device_space(struct rd_dev *rd_dev)'), (183, '{'), (184, '\tstruct rd_dev_sg_table *sg_table;'), (185, '\tu32 sg_tables, total_sg_needed;'), (186, '\tu32 max_sg_per_table = (RD_MAX_ALLOCATION_SIZE /'), (187, '\t\t\t\tsizeof(struct scatterlist));'), (188, '\tint rc;'), (189, ''), (190, '\tif (rd_dev->rd_page_count <= 0) {'), (191, '\t\tpr_err(""Illegal page count: %u for Ramdisk device\\n"",'), (192, '\t\t       rd_dev->rd_page_count);'), (193, '\t\treturn -EINVAL;'), (194, '\t}'), (195, ''), (196, ""\t/* Don't need backing pages for NULLIO */""), (197, '\tif (rd_dev->rd_flags & RDF_NULLIO)'), (198, '\t\treturn 0;'), (199, ''), (200, '\ttotal_sg_needed = rd_dev->rd_page_count;'), (201, ''), (202, '\tsg_tables = (total_sg_needed / max_sg_per_table) + 1;'), (203, ''), (204, '\tsg_table = kzalloc(sg_tables * sizeof(struct rd_dev_sg_table), GFP_KERNEL);'), (205, '\tif (!sg_table) {'), (206, '\t\tpr_err(""Unable to allocate memory for Ramdisk""'), (207, '\t\t       "" scatterlist tables\\n"");'), (208, '\t\treturn -ENOMEM;'), (209, '\t}'), (210, ''), (211, '\trd_dev->sg_table_array = sg_table;'), (212, '\trd_dev->sg_table_count = sg_tables;'), (213, ''), (214, '\trc = rd_allocate_sgl_table(rd_dev, sg_table, total_sg_needed, 0x00);'), (215, '\tif (rc)'), (216, '\t\treturn rc;'), (217, ''), (219, '\t\t "" %u pages in %u tables\\n"", rd_dev->rd_host->rd_host_id,'), (220, '\t\t rd_dev->rd_dev_id, rd_dev->rd_page_count,'), (221, '\t\t rd_dev->sg_table_count);')], 'deleted': [(81, '/*\trd_release_device_space():'), (82, ' *'), (83, ' *'), (84, ' */'), (85, 'static void rd_release_device_space(struct rd_dev *rd_dev)'), (87, '\tu32 i, j, page_count = 0, sg_per_table;'), (88, '\tstruct rd_dev_sg_table *sg_table;'), (92, '\tif (!rd_dev->sg_table_array || !rd_dev->sg_table_count)'), (93, '\t\treturn;'), (94, ''), (95, '\tsg_table = rd_dev->sg_table_array;'), (96, ''), (97, '\tfor (i = 0; i < rd_dev->sg_table_count; i++) {'), (108, ''), (117, '\tkfree(sg_table);'), (127, 'static int rd_build_device_space(struct rd_dev *rd_dev)'), (129, '\tu32 i = 0, j, page_offset = 0, sg_per_table, sg_tables, total_sg_needed;'), (132, '\tstruct rd_dev_sg_table *sg_table;'), (135, ''), (136, '\tif (rd_dev->rd_page_count <= 0) {'), (137, '\t\tpr_err(""Illegal page count: %u for Ramdisk device\\n"",'), (138, '\t\t\trd_dev->rd_page_count);'), (139, '\t\treturn -EINVAL;'), (140, '\t}'), (141, ''), (142, ""\t/* Don't need backing pages for NULLIO */""), (143, '\tif (rd_dev->rd_flags & RDF_NULLIO)'), (144, '\t\treturn 0;'), (145, ''), (146, '\ttotal_sg_needed = rd_dev->rd_page_count;'), (147, ''), (148, '\tsg_tables = (total_sg_needed / max_sg_per_table) + 1;'), (149, ''), (150, '\tsg_table = kzalloc(sg_tables * sizeof(struct rd_dev_sg_table), GFP_KERNEL);'), (151, '\tif (!sg_table) {'), (152, '\t\tpr_err(""Unable to allocate memory for Ramdisk""'), (153, '\t\t\t"" scatterlist tables\\n"");'), (154, '\t\treturn -ENOMEM;'), (155, '\t}'), (156, ''), (157, '\trd_dev->sg_table_array = sg_table;'), (158, '\trd_dev->sg_table_count = sg_tables;'), (196, '\t\t"" %u pages in %u tables\\n"", rd_dev->rd_host->rd_host_id,'), (197, '\t\trd_dev->rd_dev_id, rd_dev->rd_page_count,'), (198, '\t\trd_dev->sg_table_count);')]}"
+"Fix potential security leak in HashContext
+
+Summary: CVE-2014-6229
+
+This is not a NUL-terminated string, it's a fixed-size block of data.
+The risks were key truncation (if there happens to be a NUL byte in the
+key) or over-reading (which would be information leakage).
+
+Reviewed By: @ptarjan
+
+Differential Revision: D1533546","{'added': [(155, '    if (ctx->key) {'), (156, '      key = static_cast<char*>(malloc(ops->block_size));'), (157, '      memcpy(key, ctx->key, ops->block_size);'), (158, '    } else {'), (159, '      key = nullptr;'), (160, '    }')], 'deleted': [(155, '    key = ctx->key ? strdup(ctx->key) : nullptr;')]}"
+"SOAP API: apply access control to mci_account_get_array_by_id
+
+The access controls are the same as the ones applied by
+view_user_page.php, with the single addition of making the info
+available if the user requests their own information.
+
+This preserves the behaviour of the mc_login method call.
+
+Fixes #17243 (leak of user personal information)
+
+Signed-off-by: Damien Regad <dregad@mantisbt.org>","{'added': [(36, ''), (37, '\t\t$t_current_user_id = auth_get_current_user_id();'), (38, ""\t\t$t_access_level = user_get_field ( $t_current_user_id, 'access_level' );""), (39, ""\t\t$t_can_manage = access_has_global_level( config_get( 'manage_user_threshold' ) ) &&""), (40, '\t\t\taccess_has_global_level( $t_access_level );'), (41, ''), (42, '\t\t# this deviates from the behaviour of view_user_page.php, but it is more intuitive'), (43, '\t\t$t_is_same_user = $t_current_user_id === $p_user_id;'), (44, ''), (45, ""\t\t$t_can_see_realname = access_has_project_level( config_get( 'show_user_realname_threshold' ) );""), (46, ""\t\t$t_can_see_email = access_has_project_level( config_get( 'show_user_email_threshold' ) );""), (47, ''), (50, '\t\tif ( $t_is_same_user || $t_can_manage || $t_can_see_realname ) {'), (51, '\t\t\t$t_realname = user_get_realname( $p_user_id );'), (52, ''), (53, '\t\t\tif( !empty( $t_realname ) ) {'), (54, ""\t\t\t\t$t_result['real_name'] = $t_realname;""), (55, '\t\t\t}'), (58, '\t\tif ( $t_is_same_user || $t_can_manage || $t_can_see_email ) {'), (59, '\t\t\t$t_email = user_get_email( $p_user_id );'), (61, '\t\t\tif( !empty( $t_email ) ) {'), (62, ""\t\t\t\t$t_result['email'] = $t_email;""), (63, '\t\t\t}')], 'deleted': [(37, ""\t\t$t_dummy = user_get_field( $p_user_id, 'realname' );""), (39, '\t\tif( !empty( $t_dummy ) ) {'), (40, ""\t\t\t$t_result['real_name'] = $t_dummy;""), (43, ""\t\t$t_dummy = user_get_field( $p_user_id, 'email' );""), (45, '\t\tif( !empty( $t_dummy ) ) {'), (46, ""\t\t\t$t_result['email'] = $t_dummy;"")]}"
+"mac80211: fix fragmentation code, particularly for encryption
+
+The ""new"" fragmentation code (since my rewrite almost 5 years ago)
+erroneously sets skb->len rather than using skb_trim() to adjust
+the length of the first fragment after copying out all the others.
+This leaves the skb tail pointer pointing to after where the data
+originally ended, and thus causes the encryption MIC to be written
+at that point, rather than where it belongs: immediately after the
+data.
+
+The impact of this is that if software encryption is done, then
+ a) encryption doesn't work for the first fragment, the connection
+    becomes unusable as the first fragment will never be properly
+    verified at the receiver, the MIC is practically guaranteed to
+    be wrong
+ b) we leak up to 8 bytes of plaintext (!) of the packet out into
+    the air
+
+This is only mitigated by the fact that many devices are capable
+of doing encryption in hardware, in which case this can't happen
+as the tail pointer is irrelevant in that case. Additionally,
+fragmentation is not used very frequently and would normally have
+to be configured manually.
+
+Fix this by using skb_trim() properly.
+
+Cc: stable@vger.kernel.org
+Fixes: 2de8e0d999b8 (""mac80211: rewrite fragmentation"")
+Reported-by: Jouni Malinen <j@w1.fi>
+Signed-off-by: Johannes Berg <johannes.berg@intel.com>","{'added': [(881, '\tskb_trim(skb, hdrlen + per_fragm);')], 'deleted': [(881, '\tskb->len = hdrlen + per_fragm;')]}"
+"x86_64, switch_to(): Load TLS descriptors before switching DS and ES
+
+Otherwise, if buggy user code points DS or ES into the TLS
+array, they would be corrupted after a context switch.
+
+This also significantly improves the comments and documents some
+gotchas in the code.
+
+Before this patch, the both tests below failed.  With this
+patch, the es test passes, although the gsbase test still fails.
+
+ ----- begin es test -----
+
+/*
+ * Copyright (c) 2014 Andy Lutomirski
+ * GPL v2
+ */
+
+static unsigned short GDT3(int idx)
+{
+	return (idx << 3) | 3;
+}
+
+static int create_tls(int idx, unsigned int base)
+{
+	struct user_desc desc = {
+		.entry_number    = idx,
+		.base_addr       = base,
+		.limit           = 0xfffff,
+		.seg_32bit       = 1,
+		.contents        = 0, /* Data, grow-up */
+		.read_exec_only  = 0,
+		.limit_in_pages  = 1,
+		.seg_not_present = 0,
+		.useable         = 0,
+	};
+
+	if (syscall(SYS_set_thread_area, &desc) != 0)
+		err(1, ""set_thread_area"");
+
+	return desc.entry_number;
+}
+
+int main()
+{
+	int idx = create_tls(-1, 0);
+	printf(""Allocated GDT index %d\n"", idx);
+
+	unsigned short orig_es;
+	asm volatile (""mov %%es,%0"" : ""=rm"" (orig_es));
+
+	int errors = 0;
+	int total = 1000;
+	for (int i = 0; i < total; i++) {
+		asm volatile (""mov %0,%%es"" : : ""rm"" (GDT3(idx)));
+		usleep(100);
+
+		unsigned short es;
+		asm volatile (""mov %%es,%0"" : ""=rm"" (es));
+		asm volatile (""mov %0,%%es"" : : ""rm"" (orig_es));
+		if (es != GDT3(idx)) {
+			if (errors == 0)
+				printf(""[FAIL]\tES changed from 0x%hx to 0x%hx\n"",
+				       GDT3(idx), es);
+			errors++;
+		}
+	}
+
+	if (errors) {
+		printf(""[FAIL]\tES was corrupted %d/%d times\n"", errors, total);
+		return 1;
+	} else {
+		printf(""[OK]\tES was preserved\n"");
+		return 0;
+	}
+}
+
+ ----- end es test -----
+
+ ----- begin gsbase test -----
+
+/*
+ * gsbase.c, a gsbase test
+ * Copyright (c) 2014 Andy Lutomirski
+ * GPL v2
+ */
+
+static unsigned char *testptr, *testptr2;
+
+static unsigned char read_gs_testvals(void)
+{
+	unsigned char ret;
+	asm volatile (""movb %%gs:%1, %0"" : ""=r"" (ret) : ""m"" (*testptr));
+	return ret;
+}
+
+int main()
+{
+	int errors = 0;
+
+	testptr = mmap((void *)0x200000000UL, 1, PROT_READ | PROT_WRITE,
+		       MAP_PRIVATE | MAP_FIXED | MAP_ANONYMOUS, -1, 0);
+	if (testptr == MAP_FAILED)
+		err(1, ""mmap"");
+
+	testptr2 = mmap((void *)0x300000000UL, 1, PROT_READ | PROT_WRITE,
+		       MAP_PRIVATE | MAP_FIXED | MAP_ANONYMOUS, -1, 0);
+	if (testptr2 == MAP_FAILED)
+		err(1, ""mmap"");
+
+	*testptr = 0;
+	*testptr2 = 1;
+
+	if (syscall(SYS_arch_prctl, ARCH_SET_GS,
+		    (unsigned long)testptr2 - (unsigned long)testptr) != 0)
+		err(1, ""ARCH_SET_GS"");
+
+	usleep(100);
+
+	if (read_gs_testvals() == 1) {
+		printf(""[OK]\tARCH_SET_GS worked\n"");
+	} else {
+		printf(""[FAIL]\tARCH_SET_GS failed\n"");
+		errors++;
+	}
+
+	asm volatile (""mov %0,%%gs"" : : ""r"" (0));
+
+	if (read_gs_testvals() == 0) {
+		printf(""[OK]\tWriting 0 to gs worked\n"");
+	} else {
+		printf(""[FAIL]\tWriting 0 to gs failed\n"");
+		errors++;
+	}
+
+	usleep(100);
+
+	if (read_gs_testvals() == 0) {
+		printf(""[OK]\tgsbase is still zero\n"");
+	} else {
+		printf(""[FAIL]\tgsbase was corrupted\n"");
+		errors++;
+	}
+
+	return errors == 0 ? 0 : 1;
+}
+
+ ----- end gsbase test -----
+
+Signed-off-by: Andy Lutomirski <luto@amacapital.net>
+Cc: <stable@vger.kernel.org>
+Cc: Andi Kleen <andi@firstfloor.org>
+Cc: Linus Torvalds <torvalds@linux-foundation.org>
+Link: http://lkml.kernel.org/r/509d27c9fec78217691c3dad91cec87e1006b34a.1418075657.git.luto@amacapital.net
+Signed-off-by: Ingo Molnar <mingo@kernel.org>","{'added': [(286, '\t/* Reload esp0 and ss1. */'), (297, '\t/*'), (298, '\t * Load TLS before restoring any segments so that segment loads'), (299, '\t * reference the correct GDT entries.'), (300, '\t */'), (304, '\t * Leave lazy mode, flushing any hypercalls made here.  This'), (305, '\t * must be done after loading TLS entries in the GDT but before'), (306, '\t * loading segments that might reference them, and and it must'), (307, '\t * be done before math_state_restore, so the TS bit is up to'), (308, '\t * date.'), (312, '\t/* Switch DS and ES.'), (313, '\t *'), (314, '\t * Reading them only returns the selectors, but writing them (if'), (315, '\t * nonzero) loads the full descriptor from the GDT or LDT.  The'), (316, '\t * LDT for next is loaded in switch_mm, and the GDT is loaded'), (317, '\t * above.'), (318, '\t *'), (319, '\t * We therefore need to write new values to the segment'), (320, '\t * registers on every context switch unless both the new and old'), (321, '\t * values are zero.'), (322, '\t *'), (323, ""\t * Note that we don't need to do anything for CS and SS, as""), (324, '\t * those are saved and restored as part of pt_regs.'), (325, '\t */'), (326, '\tsavesegment(es, prev->es);'), (327, '\tif (unlikely(next->es | prev->es))'), (328, '\t\tloadsegment(es, next->es);'), (329, ''), (330, '\tsavesegment(ds, prev->ds);'), (331, '\tif (unlikely(next->ds | prev->ds))'), (332, '\t\tloadsegment(ds, next->ds);'), (333, ''), (337, '\t * These are even more complicated than FS and GS: they have'), (338, '\t * 64-bit bases are that controlled by arch_prctl.  Those bases'), (339, '\t * only differ from the values in the GDT or LDT if the selector'), (340, '\t * is 0.'), (341, '\t *'), (342, '\t * Loading the segment register resets the hidden base part of'), (343, '\t * the register to 0 or the value from the GDT / LDT.  If the'), (344, '\t * next base address zero, writing 0 to the segment register is'), (345, '\t * much faster than using wrmsr to explicitly zero the base.'), (346, '\t *'), (347, '\t * The thread_struct.fs and thread_struct.gs values are 0'), (348, '\t * if the fs and gs bases respectively are not overridden'), (349, '\t * from the values implied by fsindex and gsindex.  They'), (350, '\t * are nonzero, and store the nonzero base addresses, if'), (351, '\t * the bases are overridden.'), (352, '\t *'), (353, '\t * (fs != 0 && fsindex != 0) || (gs != 0 && gsindex != 0) should'), (354, '\t * be impossible.'), (355, '\t *'), (356, '\t * Therefore we need to reload the segment registers if either'), (357, '\t * the old or new selector is nonzero, and we need to override'), (358, '\t * the base address if next thread expects it to be overridden.'), (359, '\t *'), (360, '\t * This code is unnecessarily slow in the case where the old and'), (361, '\t * new indexes are zero and the new base is nonzero -- it will'), (362, '\t * unnecessarily write 0 to the selector before writing the new'), (363, '\t * base address.'), (364, '\t *'), (365, '\t * Note: This all depends on arch_prctl being the only way that'), (366, '\t * user code can override the segment base.  Once wrfsbase and'), (367, '\t * wrgsbase are enabled, most of this code will need to change.'), (371, ''), (373, '\t\t * If user code wrote a nonzero value to FS, then it also'), (374, '\t\t * cleared the overridden base address.'), (375, '\t\t *'), (376, '\t\t * XXX: if user code wrote 0 to FS and cleared the base'), (377, ""\t\t * address itself, we won't notice and we'll incorrectly""), (378, '\t\t * restore the prior base address next time we reschdule'), (379, '\t\t * the process.'), (390, ''), (391, '\t\t/* This works (and fails) the same way as fsindex above. */')], 'deleted': [(286, '\t/*'), (287, '\t * Reload esp0, LDT and the page table pointer:'), (288, '\t */'), (291, '\t/*'), (292, '\t * Switch DS and ES.'), (293, ""\t * This won't pick up thread selector changes, but I guess that is ok.""), (294, '\t */'), (295, '\tsavesegment(es, prev->es);'), (296, '\tif (unlikely(next->es | prev->es))'), (297, '\t\tloadsegment(es, next->es);'), (298, ''), (299, '\tsavesegment(ds, prev->ds);'), (300, '\tif (unlikely(next->ds | prev->ds))'), (301, '\t\tloadsegment(ds, next->ds);'), (302, ''), (303, ''), (315, '\t * Leave lazy mode, flushing any hypercalls made here.'), (316, '\t * This must be done before restoring TLS segments so'), (317, '\t * the GDT and LDT are properly updated, and must be'), (318, '\t * done before math_state_restore, so the TS bit is up'), (319, '\t * to date.'), (326, '\t * Segment register != 0 always requires a reload.  Also'), (327, '\t * reload when it has changed.  When prev process used 64bit'), (328, '\t * base always reload to avoid an information leak.'), (333, '\t\t * Check if the user used a selector != 0; if yes'), (334, '\t\t *  clear 64bit base, since overloaded base is always'), (335, '\t\t *  mapped to the Null selector'), (340, '\t/* when next process has a 64bit base use it */')]}"
+"sched: Fix information leak in sys_sched_getattr()
+
+We're copying the on-stack structure to userspace, but forgot to give
+the right number of bytes to copy. This allows the calling process to
+obtain up to PAGE_SIZE bytes from the stack (and possibly adjacent
+kernel memory).
+
+This fix copies only as much as we actually have on the stack
+(attr->size defaults to the size of the struct) and leaves the rest of
+the userspace-provided buffer untouched.
+
+Found using kmemcheck + trinity.
+
+Fixes: d50dde5a10f30 (""sched: Add new scheduler syscalls to support an extended scheduling parameters ABI"")
+Cc: Dario Faggioli <raistlin@linux.it>
+Cc: Juri Lelli <juri.lelli@gmail.com>
+Cc: Ingo Molnar <mingo@kernel.org>
+Signed-off-by: Vegard Nossum <vegard.nossum@oracle.com>
+Signed-off-by: Peter Zijlstra <peterz@infradead.org>
+Link: http://lkml.kernel.org/r/1392585857-10725-1-git-send-email-vegard.nossum@oracle.com
+Signed-off-by: Thomas Gleixner <tglx@linutronix.de>","{'added': [(3789, '\tret = copy_to_user(uattr, attr, attr->size);')], 'deleted': [(3789, '\tret = copy_to_user(uattr, attr, usize);')]}"
+Fix for CVE-2015-2141. Thanks to Evgeny Sidorov for reporting. Squaring to satisfy Jacobi requirements suggested by JPM.,"{'added': [(129, ''), (130, '\t// do this in a loop for people using small numbers for testing'), (131, '\tdo {'), (133, '\t\t// Fix for CVE-2015-2141. Thanks to Evgeny Sidorov for reporting.'), (134, '\t\t// Squaring to satisfy Jacobi requirements suggested by JPM.'), (135, '\t\tr = modn.Square(r);'), (138, '')], 'deleted': [(129, '\tdo {\t// do this in a loop for people using small numbers for testing')]}"
+"[security] Risk of BREACH attack
+
+Thanks to Michal Čihař for the message suggestion.
+
+Signed-off-by: Marc Delisle <marc@infomarc.info>","{'added': [(603, ""if ($GLOBALS['lang_failed_cfg']""), (604, ""    || $GLOBALS['lang_failed_cookie']""), (605, ""    || $GLOBALS['lang_failed_request']) {""), (607, ""        __('Ignoring unsupported language code.'),"")], 'deleted': [(603, ""if ($GLOBALS['lang_failed_cfg']) {""), (605, '        sprintf('), (606, ""            __('Unknown language: %1$s.'),""), (607, ""            htmlspecialchars($GLOBALS['lang_failed_cfg'])""), (608, '        ),'), (612, ""if ($GLOBALS['lang_failed_cookie']) {""), (613, '    trigger_error('), (614, '        sprintf('), (615, ""            __('Unknown language: %1$s.'),""), (616, ""            htmlspecialchars($GLOBALS['lang_failed_cookie'])""), (617, '        ),'), (618, '        E_USER_ERROR'), (619, '    );'), (620, '}'), (621, ""if ($GLOBALS['lang_failed_request']) {""), (622, '    trigger_error('), (623, '        sprintf('), (624, ""            __('Unknown language: %1$s.'),""), (625, ""            htmlspecialchars($GLOBALS['lang_failed_request'])""), (626, '        ),'), (627, '        E_USER_ERROR'), (628, '    );'), (629, '}'), (630, '')]}"
+"oops, fix export with wildcards","{'added': [(26, '    // Get the Pad'), (27, '    db.findKeys(""pad:""+padId, null, function(err,padcontent){'), (28, '      if(!err){'), (29, '        cb(err, padcontent);'), (30, '      }'), (31, '    })'), (32, '  },'), (33, '  function(padcontent,cb){'), (34, ''), (36, '    db.findKeys(""pad:""+padId+"":*"", null, function(err,records){'), (38, '        for (var key in padcontent) { records.push(padcontent[key]);}')], 'deleted': [(27, '    db.findKeys(""pad:""+padId+""*"", null, function(err,records){')]}"
+Adopted SecureRandom to avoid predicable random numbers in session,"{'added': [(2, ' *'), (3, ' *  *  Copyright 2014 Orient Technologies LTD (info(at)orientechnologies.com)'), (4, ' *  *'), (5, ' *  *  Licensed under the Apache License, Version 2.0 (the ""License"");'), (6, ' *  *  you may not use this file except in compliance with the License.'), (7, ' *  *  You may obtain a copy of the License at'), (8, ' *  *'), (9, ' *  *       http://www.apache.org/licenses/LICENSE-2.0'), (10, ' *  *'), (11, ' *  *  Unless required by applicable law or agreed to in writing, software'), (12, ' *  *  distributed under the License is distributed on an ""AS IS"" BASIS,'), (13, ' *  *  WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.'), (14, ' *  *  See the License for the specific language governing permissions and'), (15, ' *  *  limitations under the License.'), (16, ' *  *'), (17, ' *  * For more information: http://www.orientechnologies.com'), (18, ' *'), (19, ' */'), (23, 'import com.orientechnologies.common.log.OLogManager;'), (24, 'import com.orientechnologies.orient.core.Orient;'), (25, 'import com.orientechnologies.orient.core.config.OGlobalConfiguration;'), (26, ''), (27, 'import java.security.SecureRandom;'), (28, 'import java.util.HashMap;'), (29, 'import java.util.Iterator;'), (30, 'import java.util.Map;'), (31, 'import java.util.Map.Entry;'), (32, 'import java.util.Random;'), (33, 'import java.util.TimerTask;'), (36, ' * Handles the HTTP sessions such as a real HTTP Server.'), (37, ' *'), (38, ' * @author Luca Garulli'), (39, ' */'), (40, 'public class OHttpSessionManager extends OSharedResourceAbstract {'), (41, '  private static final OHttpSessionManager instance = new OHttpSessionManager();'), (42, '  private Map<String, OHttpSession>        sessions = new HashMap<String, OHttpSession>();'), (43, '  private int                              expirationTime;'), (44, '  private Random                           random   = new SecureRandom();'), (45, ''), (46, '  protected OHttpSessionManager() {'), (47, '    expirationTime = OGlobalConfiguration.NETWORK_HTTP_SESSION_EXPIRE_TIMEOUT.getValueAsInteger() * 1000;'), (48, ''), (49, '    Orient.instance().scheduleTask(new TimerTask() {'), (50, '      @Override'), (51, '      public void run() {'), (52, '        final int expired = checkSessionsValidity();'), (53, '        if (expired > 0)'), (54, '          OLogManager.instance().debug(this, ""Removed %d session because expired"", expired);'), (55, '      }'), (56, '    }, expirationTime, expirationTime);'), (57, '  }'), (58, ''), (59, '  public int checkSessionsValidity() {'), (60, '    int expired = 0;'), (61, ''), (62, '    acquireExclusiveLock();'), (63, '    try {'), (64, '      final long now = System.currentTimeMillis();'), (65, ''), (66, '      Entry<String, OHttpSession> s;'), (67, '      for (Iterator<Map.Entry<String, OHttpSession>> it = sessions.entrySet().iterator(); it.hasNext();) {'), (68, '        s = it.next();'), (69, ''), (70, '        if (now - s.getValue().getUpdatedOn() > expirationTime) {'), (71, '          // REMOVE THE SESSION'), (72, '          it.remove();'), (73, '          expired++;'), (74, '        }'), (75, '      }'), (76, ''), (77, '    } finally {'), (78, '      releaseExclusiveLock();'), (79, '    }'), (80, ''), (81, '    return expired;'), (82, '  }'), (83, ''), (84, '  public OHttpSession[] getSessions() {'), (85, '    acquireSharedLock();'), (86, '    try {'), (87, ''), (88, '      return (OHttpSession[]) sessions.values().toArray(new OHttpSession[sessions.size()]);'), (89, ''), (90, '    } finally {'), (91, '      releaseSharedLock();'), (92, '    }'), (93, '  }'), (94, ''), (95, '  public OHttpSession getSession(final String iId) {'), (96, '    acquireSharedLock();'), (97, '    try {'), (98, ''), (99, '      final OHttpSession sess = sessions.get(iId);'), (100, '      if (sess != null)'), (101, '        sess.updateLastUpdatedOn();'), (102, '      return sess;'), (103, ''), (104, '    } finally {'), (105, '      releaseSharedLock();'), (106, '    }'), (107, '  }'), (108, ''), (109, '  public String createSession(final String iDatabaseName, final String iUserName, final String iUserPassword) {'), (110, '    acquireExclusiveLock();'), (111, '    try {'), (112, '      final String id = ""OS"" + System.currentTimeMillis() + random.nextLong();'), (113, '      sessions.put(id, new OHttpSession(id, iDatabaseName, iUserName, iUserPassword));'), (114, '      return id;'), (115, ''), (116, '    } finally {'), (117, '      releaseExclusiveLock();'), (118, '    }'), (119, '  }'), (120, ''), (121, '  public OHttpSession removeSession(final String iSessionId) {'), (122, '    acquireExclusiveLock();'), (123, '    try {'), (124, '      return sessions.remove(iSessionId);'), (125, ''), (126, '    } finally {'), (127, '      releaseExclusiveLock();'), (128, '    }'), (129, '  }'), (130, ''), (131, '  public int getExpirationTime() {'), (132, '    return expirationTime;'), (133, '  }'), (134, ''), (135, '  public void setExpirationTime(int expirationTime) {'), (136, '    this.expirationTime = expirationTime;'), (137, '  }'), (138, ''), (139, '  public static OHttpSessionManager getInstance() {'), (140, '    return instance;'), (141, '  }'), (142, '}')], 'deleted': [(2, '    *'), (3, '    *  *  Copyright 2014 Orient Technologies LTD (info(at)orientechnologies.com)'), (4, '    *  *'), (5, '    *  *  Licensed under the Apache License, Version 2.0 (the ""License"");'), (6, '    *  *  you may not use this file except in compliance with the License.'), (7, '    *  *  You may obtain a copy of the License at'), (8, '    *  *'), (9, '    *  *       http://www.apache.org/licenses/LICENSE-2.0'), (10, '    *  *'), (11, '    *  *  Unless required by applicable law or agreed to in writing, software'), (12, '    *  *  distributed under the License is distributed on an ""AS IS"" BASIS,'), (13, '    *  *  WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.'), (14, '    *  *  See the License for the specific language governing permissions and'), (15, '    *  *  limitations under the License.'), (16, '    *  *'), (17, '    *  * For more information: http://www.orientechnologies.com'), (18, '    *'), (19, '    */'), (23, ' import com.orientechnologies.common.log.OLogManager;'), (24, ' import com.orientechnologies.orient.core.Orient;'), (25, ' import com.orientechnologies.orient.core.config.OGlobalConfiguration;'), (26, ''), (27, ' import java.util.HashMap;'), (28, ' import java.util.Iterator;'), (29, ' import java.util.Map;'), (30, ' import java.util.Map.Entry;'), (31, ' import java.util.Random;'), (32, ' import java.util.TimerTask;'), (35, '  * Handles the HTTP sessions such as a real HTTP Server.'), (36, '  *'), (37, '  * @author Luca Garulli'), (38, '  */'), (39, ' public class OHttpSessionManager extends OSharedResourceAbstract {'), (40, '   private static final OHttpSessionManager instance = new OHttpSessionManager();'), (41, '   private Map<String, OHttpSession>        sessions = new HashMap<String, OHttpSession>();'), (42, '   private int                              expirationTime;'), (43, '   private Random                           random   = new Random();'), (44, ''), (45, '   protected OHttpSessionManager() {'), (46, '     expirationTime = OGlobalConfiguration.NETWORK_HTTP_SESSION_EXPIRE_TIMEOUT.getValueAsInteger() * 1000;'), (47, ''), (48, '     Orient.instance().scheduleTask(new TimerTask() {'), (49, '       @Override'), (50, '       public void run() {'), (51, '         final int expired = checkSessionsValidity();'), (52, '         if (expired > 0)'), (53, '           OLogManager.instance().debug(this, ""Removed %d session because expired"", expired);'), (54, '       }'), (55, '     }, expirationTime, expirationTime);'), (56, '   }'), (57, ''), (58, '   public int checkSessionsValidity() {'), (59, '     int expired = 0;'), (60, ''), (61, '     acquireExclusiveLock();'), (62, '     try {'), (63, '       final long now = System.currentTimeMillis();'), (64, ''), (65, '       Entry<String, OHttpSession> s;'), (66, '       for (Iterator<Map.Entry<String, OHttpSession>> it = sessions.entrySet().iterator(); it.hasNext();) {'), (67, '         s = it.next();'), (68, ''), (69, '         if (now - s.getValue().getUpdatedOn() > expirationTime) {'), (70, '           // REMOVE THE SESSION'), (71, '           it.remove();'), (72, '           expired++;'), (73, '         }'), (74, '       }'), (75, ''), (76, '     } finally {'), (77, '       releaseExclusiveLock();'), (78, '     }'), (79, ''), (80, '     return expired;'), (81, '   }'), (82, ''), (83, '   public OHttpSession[] getSessions() {'), (84, '     acquireSharedLock();'), (85, '     try {'), (86, ''), (87, '       return (OHttpSession[]) sessions.values().toArray(new OHttpSession[sessions.size()]);'), (88, ''), (89, '     } finally {'), (90, '       releaseSharedLock();'), (91, '     }'), (92, '   }'), (93, ''), (94, '   public OHttpSession getSession(final String iId) {'), (95, '     acquireSharedLock();'), (96, '     try {'), (97, ''), (98, '       final OHttpSession sess = sessions.get(iId);'), (99, '       if (sess != null)'), (100, '         sess.updateLastUpdatedOn();'), (101, '       return sess;'), (102, ''), (103, '     } finally {'), (104, '       releaseSharedLock();'), (105, '     }'), (106, '   }'), (107, ''), (108, '   public String createSession(final String iDatabaseName, final String iUserName, final String iUserPassword) {'), (109, '     acquireExclusiveLock();'), (110, '     try {'), (111, '       final String id = ""OS"" + System.currentTimeMillis() + random.nextLong();'), (112, '       sessions.put(id, new OHttpSession(id, iDatabaseName, iUserName, iUserPassword));'), (113, '       return id;'), (114, ''), (115, '     } finally {'), (116, '       releaseExclusiveLock();'), (117, '     }'), (118, '   }'), (119, ''), (120, '   public OHttpSession removeSession(final String iSessionId) {'), (121, '     acquireExclusiveLock();'), (122, '     try {'), (123, '       return sessions.remove(iSessionId);'), (124, ''), (125, '     } finally {'), (126, '       releaseExclusiveLock();'), (127, '     }'), (128, '   }'), (129, ''), (130, '   public int getExpirationTime() {'), (131, '     return expirationTime;'), (132, '   }'), (133, ''), (134, '   public void setExpirationTime(int expirationTime) {'), (135, '     this.expirationTime = expirationTime;'), (136, '   }'), (137, ''), (138, '   public static OHttpSessionManager getInstance() {'), (139, '     return instance;'), (140, '   }'), (141, ' }')]}"
+"mnt: Update detach_mounts to leave mounts connected
+
+Now that it is possible to lazily unmount an entire mount tree and
+leave the individual mounts connected to each other add a new flag
+UMOUNT_CONNECTED to umount_tree to force this behavior and use
+this flag in detach_mounts.
+
+This closes a bug where the deletion of a file or directory could
+trigger an unmount and reveal data under a mount point.
+
+Cc: stable@vger.kernel.org
+Signed-off-by: ""Eric W. Biederman"" <ebiederm@xmission.com>","{'added': [(1351, '\tUMOUNT_CONNECTED = 4,'), (1390, '\t\tdisconnect = !(((how & UMOUNT_CONNECTED) &&'), (1391, '\t\t\t\tmnt_has_parent(p) &&'), (1392, '\t\t\t\t(p->mnt_parent->mnt.mnt_flags & MNT_UMOUNT)) ||'), (1393, '\t\t\t       IS_MNT_LOCKED_AND_LAZY(p));'), (1536, '\t\telse umount_tree(mnt, UMOUNT_CONNECTED);')], 'deleted': [(1389, '\t\tdisconnect = !IS_MNT_LOCKED_AND_LAZY(p);'), (1532, '\t\telse umount_tree(mnt, 0);')]}"
+"Change default threshold to view project doc to VIEWER
+
+Previously it was ANYBODY, which would let any user download files from
+any project including private ones, even when they are not part of the
+team.
+
+Fixes #19873","{'added': [(2698, ' * Note: setting this to ANYBODY will let any user download attachments'), (2699, ' * from private projects, regardless of their being a member of it.'), (2700, ' * @see $g_enable_project_documentation'), (2701, ' * @see $g_upload_project_file_threshold'), (2704, '$g_view_proj_doc_threshold = VIEWER;')], 'deleted': [(2700, '$g_view_proj_doc_threshold = ANYBODY;')]}"
+"wizard: fix save users changes after reviewing dump dir files
+
+If the user reviewed the dump dir's files during reporting the crash, the
+changes was thrown away and original data was passed to the bugzilla bug
+report.
+
+report-gtk saves the first text view buffer and then reloads data from the
+reported problem directory, which causes that the changes made to those text
+views are thrown away.
+
+Function save_text_if_changed(), except of saving text, also reload the files
+from dump dir and update gui state from the dump dir. The commit moves the
+reloading and updating gui functions away from this function.
+
+Related to rhbz#1270235
+
+Signed-off-by: Matej Habrnal <mhabrnal@redhat.com>","{'added': [(778, '        {'), (780, '            problem_data_reload_from_dump_dir();'), (781, ""            update_gui_state_from_problem_data(/* don't update selected event */ 0);""), (782, '        }'), (2714, '    problem_data_reload_from_dump_dir();'), (2715, ""    update_gui_state_from_problem_data(/* don't update selected event */ 0);"")], 'deleted': [(436, '        problem_data_reload_from_dump_dir();'), (437, ""        update_gui_state_from_problem_data(/* don't update selected event */ 0);""), (2712, '')]}"
+"md: use kzalloc() when bitmap is disabled
+
+In drivers/md/md.c get_bitmap_file() uses kmalloc() for creating a
+mdu_bitmap_file_t called ""file"".
+
+5769         file = kmalloc(sizeof(*file), GFP_NOIO);
+5770         if (!file)
+5771                 return -ENOMEM;
+
+This structure is copied to user space at the end of the function.
+
+5786         if (err == 0 &&
+5787             copy_to_user(arg, file, sizeof(*file)))
+5788                 err = -EFAULT
+
+But if bitmap is disabled only the first byte of ""file"" is initialized
+with zero, so it's possible to read some bytes (up to 4095) of kernel
+space memory from user space. This is an information leak.
+
+5775         /* bitmap disabled, zero the first byte and copy out */
+5776         if (!mddev->bitmap_info.file)
+5777                 file->pathname[0] = '\0';
+
+Signed-off-by: Benjamin Randazzo <benjamin@randazzo.fr>
+Signed-off-by: NeilBrown <neilb@suse.com>","{'added': [(5762, '\tfile = kzalloc(sizeof(*file), GFP_NOIO);')], 'deleted': [(5762, '\tfile = kmalloc(sizeof(*file), GFP_NOIO);')]}"
+"replace passwords even before logging, not just for display
+
+Signed-off-by: Michael Kaufmann (d00p) <d00p@froxlor.org>","{'added': [(315, '\t\t// include userdata.inc.php'), (316, '\t\trequire FROXLOR_INSTALL_DIR.""/lib/userdata.inc.php"";'), (317, ''), (318, '\t\t// le format'), (319, ""\t\tif (isset($sql['root_user'])""), (320, ""\t\t    && isset($sql['root_password'])""), (321, '\t\t    && (!isset($sql_root) || !is_array($sql_root))'), (322, '\t\t) {'), (323, ""\t\t    $sql_root = array(0 => array('caption' => 'Default', 'host' => $sql['host'], 'socket' => (isset($sql['socket']) ? $sql['socket'] : null), 'user' => $sql['root_user'], 'password' => $sql['root_password']));""), (324, '\t\t}'), (325, ''), (326, '\t\t// hide username/password in messages'), (327, '\t\t$error_message = $error->getMessage();'), (328, '\t\t$error_trace = $error->getTraceAsString();'), (329, '\t\t// error-message'), (330, ""\t\t$error_message = str_replace($sql['password'], 'DB_UNPRIV_PWD', $error_message);""), (331, ""\t\t$error_message = str_replace($sql_root[0]['password'], 'DB_ROOT_PWD', $error_message);""), (332, '\t\t// error-trace'), (333, ""\t\t$error_trace = str_replace($sql['password'], 'DB_UNPRIV_PWD', $error_trace);""), (334, ""\t\t$error_trace = str_replace($sql_root[0]['password'], 'DB_ROOT_PWD', $error_trace);""), (335, ''), (336, '\t\tif ($error->getCode() == 2003) {'), (337, '\t\t    $error_message = ""Unable to connect to database. Either the mysql-server is not running or your user/password is wrong."";'), (338, '\t\t    $error_trace = """";'), (339, '\t\t}'), (340, ''), (351, '\t\t@fwrite($sqllog, date(\'d.m.Y H:i\', time())."" --- "".str_replace(""\\n"", "" "", $error_message).""\\n"");'), (352, '\t\t@fwrite($sqllog, date(\'d.m.Y H:i\', time())."" --- DEBUG: \\n"".$error_trace.""\\n"");'), (362, '\t\t@fwrite($errlog, ""|MSG "".$error_message.""\\n"");'), (365, '\t\t@fwrite($errlog, ""|TRACE\\n"".$error_trace.""\\n"");')], 'deleted': [(325, '\t\t@fwrite($sqllog, date(\'d.m.Y H:i\', time())."" --- "".str_replace(""\\n"", "" "", $error->getMessage()).""\\n"");'), (326, '\t\t@fwrite($sqllog, date(\'d.m.Y H:i\', time())."" --- DEBUG: \\n"".$error->getTraceAsString().""\\n"");'), (336, '\t\t@fwrite($errlog, ""|MSG "".$error->getMessage().""\\n"");'), (339, '\t\t@fwrite($errlog, ""|TRACE\\n"".$error->getTraceAsString().""\\n"");'), (344, '\t\t\t// include userdata.inc.php'), (345, '\t\t\trequire FROXLOR_INSTALL_DIR.""/lib/userdata.inc.php"";'), (346, ''), (350, '\t\t\t// le format'), (351, ""\t\t\tif (isset($sql['root_user'])""), (352, ""\t\t\t\t&& isset($sql['root_password'])""), (353, '\t\t\t\t&& (!isset($sql_root) || !is_array($sql_root))'), (354, '\t\t\t) {'), (355, ""\t\t\t\t$sql_root = array(0 => array('caption' => 'Default', 'host' => $sql['host'], 'socket' => (isset($sql['socket']) ? $sql['socket'] : null), 'user' => $sql['root_user'], 'password' => $sql['root_password']));""), (356, '\t\t\t}'), (357, ''), (358, '\t\t\t// hide username/password in messages'), (359, '\t\t\t$error_message = $error->getMessage();'), (360, '\t\t\t$error_trace = $error->getTraceAsString();'), (361, '\t\t\t// error-message'), (362, ""\t\t\t$error_message = str_replace($sql['password'], 'DB_UNPRIV_PWD', $error_message);""), (363, ""\t\t\t$error_message = str_replace($sql_root[0]['password'], 'DB_ROOT_PWD', $error_message);""), (364, '\t\t\t// error-trace'), (365, ""\t\t\t$error_trace = str_replace($sql['password'], 'DB_UNPRIV_PWD', $error_trace);""), (366, ""\t\t\t$error_trace = str_replace($sql_root[0]['password'], 'DB_ROOT_PWD', $error_trace);""), (367, ''), (368, '\t\t\tif ($error->getCode() == 2003) {'), (369, '\t\t\t    $error_message = ""Unable to connect to database. Either the mysql-server is not running or your user/password is wrong."";'), (370, '\t\t\t    $error_trace = """";'), (371, '\t\t\t}'), (372, '')]}"
+"SECURITY: Don't disclose if an IP is autoblocked on Special:DeletedContributions
+
+Same patch as dc2966bd05b, just for Special:DeletedContributions this
+time.
+
+Bug: T106893
+Change-Id: I2089b21fc379b612fe9bf087b5f4ea75052bdbd3","{'added': [(480, '\t\t\t\t\tif ( $userObj->isBlocked() && $userObj->getBlock()->getType() !== Block::TYPE_AUTO ) {')], 'deleted': [(480, '\t\t\t\t\tif ( $userObj->isBlocked() ) {')]}"
+"Btrfs: fix truncation of compressed and inlined extents
+
+When truncating a file to a smaller size which consists of an inline
+extent that is compressed, we did not discard (or made unusable) the
+data between the new file size and the old file size, wasting metadata
+space and allowing for the truncated data to be leaked and the data
+corruption/loss mentioned below.
+We were also not correctly decrementing the number of bytes used by the
+inode, we were setting it to zero, giving a wrong report for callers of
+the stat(2) syscall. The fsck tool also reported an error about a mismatch
+between the nbytes of the file versus the real space used by the file.
+
+Now because we weren't discarding the truncated region of the file, it
+was possible for a caller of the clone ioctl to actually read the data
+that was truncated, allowing for a security breach without requiring root
+access to the system, using only standard filesystem operations. The
+scenario is the following:
+
+   1) User A creates a file which consists of an inline and compressed
+      extent with a size of 2000 bytes - the file is not accessible to
+      any other users (no read, write or execution permission for anyone
+      else);
+
+   2) The user truncates the file to a size of 1000 bytes;
+
+   3) User A makes the file world readable;
+
+   4) User B creates a file consisting of an inline extent of 2000 bytes;
+
+   5) User B issues a clone operation from user A's file into its own
+      file (using a length argument of 0, clone the whole range);
+
+   6) User B now gets to see the 1000 bytes that user A truncated from
+      its file before it made its file world readbale. User B also lost
+      the bytes in the range [1000, 2000[ bytes from its own file, but
+      that might be ok if his/her intention was reading stale data from
+      user A that was never supposed to be public.
+
+Note that this contrasts with the case where we truncate a file from 2000
+bytes to 1000 bytes and then truncate it back from 1000 to 2000 bytes. In
+this case reading any byte from the range [1000, 2000[ will return a value
+of 0x00, instead of the original data.
+
+This problem exists since the clone ioctl was added and happens both with
+and without my recent data loss and file corruption fixes for the clone
+ioctl (patch ""Btrfs: fix file corruption and data loss after cloning
+inline extents"").
+
+So fix this by truncating the compressed inline extents as we do for the
+non-compressed case, which involves decompressing, if the data isn't already
+in the page cache, compressing the truncated version of the extent, writing
+the compressed content into the inline extent and then truncate it.
+
+The following test case for fstests reproduces the problem. In order for
+the test to pass both this fix and my previous fix for the clone ioctl
+that forbids cloning a smaller inline extent into a larger one,
+which is titled ""Btrfs: fix file corruption and data loss after cloning
+inline extents"", are needed. Without that other fix the test fails in a
+different way that does not leak the truncated data, instead part of
+destination file gets replaced with zeroes (because the destination file
+has a larger inline extent than the source).
+
+  seq=`basename $0`
+  seqres=$RESULT_DIR/$seq
+  echo ""QA output created by $seq""
+  tmp=/tmp/$$
+  status=1	# failure is the default!
+  trap ""_cleanup; exit \$status"" 0 1 2 3 15
+
+  _cleanup()
+  {
+      rm -f $tmp.*
+  }
+
+  # get standard environment, filters and checks
+  . ./common/rc
+  . ./common/filter
+
+  # real QA test starts here
+  _need_to_be_root
+  _supported_fs btrfs
+  _supported_os Linux
+  _require_scratch
+  _require_cloner
+
+  rm -f $seqres.full
+
+  _scratch_mkfs >>$seqres.full 2>&1
+  _scratch_mount ""-o compress""
+
+  # Create our test files. File foo is going to be the source of a clone operation
+  # and consists of a single inline extent with an uncompressed size of 512 bytes,
+  # while file bar consists of a single inline extent with an uncompressed size of
+  # 256 bytes. For our test's purpose, it's important that file bar has an inline
+  # extent with a size smaller than foo's inline extent.
+  $XFS_IO_PROG -f -c ""pwrite -S 0xa1 0 128""   \
+          -c ""pwrite -S 0x2a 128 384"" \
+          $SCRATCH_MNT/foo | _filter_xfs_io
+  $XFS_IO_PROG -f -c ""pwrite -S 0xbb 0 256"" $SCRATCH_MNT/bar | _filter_xfs_io
+
+  # Now durably persist all metadata and data. We do this to make sure that we get
+  # on disk an inline extent with a size of 512 bytes for file foo.
+  sync
+
+  # Now truncate our file foo to a smaller size. Because it consists of a
+  # compressed and inline extent, btrfs did not shrink the inline extent to the
+  # new size (if the extent was not compressed, btrfs would shrink it to 128
+  # bytes), it only updates the inode's i_size to 128 bytes.
+  $XFS_IO_PROG -c ""truncate 128"" $SCRATCH_MNT/foo
+
+  # Now clone foo's inline extent into bar.
+  # This clone operation should fail with errno EOPNOTSUPP because the source
+  # file consists only of an inline extent and the file's size is smaller than
+  # the inline extent of the destination (128 bytes < 256 bytes). However the
+  # clone ioctl was not prepared to deal with a file that has a size smaller
+  # than the size of its inline extent (something that happens only for compressed
+  # inline extents), resulting in copying the full inline extent from the source
+  # file into the destination file.
+  #
+  # Note that btrfs' clone operation for inline extents consists of removing the
+  # inline extent from the destination inode and copy the inline extent from the
+  # source inode into the destination inode, meaning that if the destination
+  # inode's inline extent is larger (N bytes) than the source inode's inline
+  # extent (M bytes), some bytes (N - M bytes) will be lost from the destination
+  # file. Btrfs could copy the source inline extent's data into the destination's
+  # inline extent so that we would not lose any data, but that's currently not
+  # done due to the complexity that would be needed to deal with such cases
+  # (specially when one or both extents are compressed), returning EOPNOTSUPP, as
+  # it's normally not a very common case to clone very small files (only case
+  # where we get inline extents) and copying inline extents does not save any
+  # space (unlike for normal, non-inlined extents).
+  $CLONER_PROG -s 0 -d 0 -l 0 $SCRATCH_MNT/foo $SCRATCH_MNT/bar
+
+  # Now because the above clone operation used to succeed, and due to foo's inline
+  # extent not being shinked by the truncate operation, our file bar got the whole
+  # inline extent copied from foo, making us lose the last 128 bytes from bar
+  # which got replaced by the bytes in range [128, 256[ from foo before foo was
+  # truncated - in other words, data loss from bar and being able to read old and
+  # stale data from foo that should not be possible to read anymore through normal
+  # filesystem operations. Contrast with the case where we truncate a file from a
+  # size N to a smaller size M, truncate it back to size N and then read the range
+  # [M, N[, we should always get the value 0x00 for all the bytes in that range.
+
+  # We expected the clone operation to fail with errno EOPNOTSUPP and therefore
+  # not modify our file's bar data/metadata. So its content should be 256 bytes
+  # long with all bytes having the value 0xbb.
+  #
+  # Without the btrfs bug fix, the clone operation succeeded and resulted in
+  # leaking truncated data from foo, the bytes that belonged to its range
+  # [128, 256[, and losing data from bar in that same range. So reading the
+  # file gave us the following content:
+  #
+  # 0000000 a1 a1 a1 a1 a1 a1 a1 a1 a1 a1 a1 a1 a1 a1 a1 a1
+  # *
+  # 0000200 2a 2a 2a 2a 2a 2a 2a 2a 2a 2a 2a 2a 2a 2a 2a 2a
+  # *
+  # 0000400
+  echo ""File bar's content after the clone operation:""
+  od -t x1 $SCRATCH_MNT/bar
+
+  # Also because the foo's inline extent was not shrunk by the truncate
+  # operation, btrfs' fsck, which is run by the fstests framework everytime a
+  # test completes, failed reporting the following error:
+  #
+  #  root 5 inode 257 errors 400, nbytes wrong
+
+  status=0
+  exit
+
+Cc: stable@vger.kernel.org
+Signed-off-by: Filipe Manana <fdmanana@suse.com>","{'added': [(4220, 'static int truncate_inline_extent(struct inode *inode,'), (4221, '\t\t\t\t  struct btrfs_path *path,'), (4222, '\t\t\t\t  struct btrfs_key *found_key,'), (4223, '\t\t\t\t  const u64 item_end,'), (4224, '\t\t\t\t  const u64 new_size)'), (4225, '{'), (4226, '\tstruct extent_buffer *leaf = path->nodes[0];'), (4227, '\tint slot = path->slots[0];'), (4228, '\tstruct btrfs_file_extent_item *fi;'), (4229, '\tu32 size = (u32)(new_size - found_key->offset);'), (4230, '\tstruct btrfs_root *root = BTRFS_I(inode)->root;'), (4231, ''), (4232, '\tfi = btrfs_item_ptr(leaf, slot, struct btrfs_file_extent_item);'), (4233, ''), (4234, '\tif (btrfs_file_extent_compression(leaf, fi) != BTRFS_COMPRESS_NONE) {'), (4235, '\t\tloff_t offset = new_size;'), (4236, '\t\tloff_t page_end = ALIGN(offset, PAGE_CACHE_SIZE);'), (4237, ''), (4238, '\t\t/*'), (4239, '\t\t * Zero out the remaining of the last page of our inline extent,'), (4240, '\t\t * instead of directly truncating our inline extent here - that'), (4241, '\t\t * would be much more complex (decompressing all the data, then'), (4242, '\t\t * compressing the truncated data, which might be bigger than'), (4243, '\t\t * the size of the inline extent, resize the extent, etc).'), (4244, '\t\t * We release the path because to get the page we might need to'), (4245, '\t\t * read the extent item from disk (data not in the page cache).'), (4246, '\t\t */'), (4247, '\t\tbtrfs_release_path(path);'), (4248, '\t\treturn btrfs_truncate_page(inode, offset, page_end - offset, 0);'), (4249, '\t}'), (4250, ''), (4251, '\tbtrfs_set_file_extent_ram_bytes(leaf, fi, size);'), (4252, '\tsize = btrfs_file_extent_calc_inline_size(size);'), (4253, '\tbtrfs_truncate_item(root, path, size, 1);'), (4254, ''), (4255, '\tif (test_bit(BTRFS_ROOT_REF_COWS, &root->state))'), (4256, '\t\tinode_sub_bytes(inode, item_end + 1 - new_size);'), (4257, ''), (4258, '\treturn 0;'), (4259, '}'), (4260, ''), (4459, '\t\t\t\t * Need to release path in order to truncate a'), (4460, '\t\t\t\t * compressed extent. So delete any accumulated'), (4461, '\t\t\t\t * extent items so far.'), (4463, '\t\t\t\tif (btrfs_file_extent_compression(leaf, fi) !='), (4464, '\t\t\t\t    BTRFS_COMPRESS_NONE && pending_del_nr) {'), (4465, '\t\t\t\t\terr = btrfs_del_items(trans, root, path,'), (4466, '\t\t\t\t\t\t\t      pending_del_slot,'), (4467, '\t\t\t\t\t\t\t      pending_del_nr);'), (4468, '\t\t\t\t\tif (err) {'), (4469, '\t\t\t\t\t\tbtrfs_abort_transaction(trans,'), (4470, '\t\t\t\t\t\t\t\t\troot,'), (4471, '\t\t\t\t\t\t\t\t\terr);'), (4472, '\t\t\t\t\t\tgoto error;'), (4473, '\t\t\t\t\t}'), (4474, '\t\t\t\t\tpending_del_nr = 0;'), (4475, '\t\t\t\t}'), (4476, ''), (4477, '\t\t\t\terr = truncate_inline_extent(inode, path,'), (4478, '\t\t\t\t\t\t\t     &found_key,'), (4479, '\t\t\t\t\t\t\t     item_end,'), (4480, '\t\t\t\t\t\t\t     new_size);'), (4481, '\t\t\t\tif (err) {'), (4482, '\t\t\t\t\tbtrfs_abort_transaction(trans,'), (4483, '\t\t\t\t\t\t\t\troot, err);'), (4484, '\t\t\t\t\tgoto error;'), (4485, '\t\t\t\t}'), (4488, '\t\t\t\tinode_sub_bytes(inode, item_end + 1 - new_size);')], 'deleted': [(4414, '\t\t\t    btrfs_file_extent_compression(leaf, fi) == 0 &&'), (4417, '\t\t\t\tu32 size = new_size - found_key.offset;'), (4418, ''), (4419, '\t\t\t\tif (test_bit(BTRFS_ROOT_REF_COWS, &root->state))'), (4420, '\t\t\t\t\tinode_sub_bytes(inode, item_end + 1 -'), (4421, '\t\t\t\t\t\t\tnew_size);'), (4424, '\t\t\t\t * update the ram bytes to properly reflect'), (4425, '\t\t\t\t * the new size of our item'), (4427, '\t\t\t\tbtrfs_set_file_extent_ram_bytes(leaf, fi, size);'), (4428, '\t\t\t\tsize ='), (4429, '\t\t\t\t    btrfs_file_extent_calc_inline_size(size);'), (4430, '\t\t\t\tbtrfs_truncate_item(root, path, size, 1);'), (4433, '\t\t\t\tinode_sub_bytes(inode, item_end + 1 -'), (4434, '\t\t\t\t\t\tfound_key.offset);')]}"
+"arm64: dma-mapping: always clear allocated buffers
+
+Buffers allocated by dma_alloc_coherent() are always zeroed on Alpha,
+ARM (32bit), MIPS, PowerPC, x86/x86_64 and probably other architectures.
+It turned out that some drivers rely on this 'feature'. Allocated buffer
+might be also exposed to userspace with dma_mmap() call, so clearing it
+is desired from security point of view to avoid exposing random memory
+to userspace. This patch unifies dma_alloc_coherent() behavior on ARM64
+architecture with other implementations by unconditionally zeroing
+allocated buffer.
+
+Cc: <stable@vger.kernel.org> # v3.14+
+Signed-off-by: Marek Szyprowski <m.szyprowski@samsung.com>
+Signed-off-by: Will Deacon <will.deacon@arm.com>","{'added': [(70, '\t\tmemset(ptr, 0, size);'), (115, '\t\tmemset(addr, 0, size);')], 'deleted': [(70, '\t\tif (flags & __GFP_ZERO)'), (71, '\t\t\tmemset(ptr, 0, size);'), (116, '\t\tif (flags & __GFP_ZERO)'), (117, '\t\t\tmemset(addr, 0, size);')]}"
+Disable DNS lookups on hover by default. Issue 6050,"{'added': [(172, 'DEFINE_BOOL(performDNSLookups, NO, @""Semantic History: Perform DNS lookups to check if URLs are valid?\\nWhen enabled, the name under the mouse will be resolved with DNS to determine if it is a clickable link."");')], 'deleted': [(172, 'DEFINE_BOOL(performDNSLookups, YES, @""Semantic History: Perform DNS lookups to check if URLs are valid?\\nWhen enabled, the name under the mouse will be resolved with DNS to determine if it is a clickable link."");')]}"
+"tty: Fix unsafe ldisc reference via ioctl(TIOCGETD)
+
+ioctl(TIOCGETD) retrieves the line discipline id directly from the
+ldisc because the line discipline id (c_line) in termios is untrustworthy;
+userspace may have set termios via ioctl(TCSETS*) without actually
+changing the line discipline via ioctl(TIOCSETD).
+
+However, directly accessing the current ldisc via tty->ldisc is
+unsafe; the ldisc ptr dereferenced may be stale if the line discipline
+is changing via ioctl(TIOCSETD) or hangup.
+
+Wait for the line discipline reference (just like read() or write())
+to retrieve the ""current"" line discipline id.
+
+Cc: <stable@vger.kernel.org>
+Signed-off-by: Peter Hurley <peter@hurleysoftware.com>
+Signed-off-by: Greg Kroah-Hartman <gregkh@linuxfoundation.org>","{'added': [(2661, '/**'), (2662, ' *\ttiocgetd\t-\tget line discipline'), (2663, ' *\t@tty: tty device'), (2664, ' *\t@p: pointer to user data'), (2665, ' *'), (2666, ' *\tRetrieves the line discipline id directly from the ldisc.'), (2667, ' *'), (2668, ' *\tLocking: waits for ldisc reference (in case the line discipline'), (2669, ' *\t\tis changing or the tty is being hungup)'), (2670, ' */'), (2671, ''), (2672, 'static int tiocgetd(struct tty_struct *tty, int __user *p)'), (2673, '{'), (2674, '\tstruct tty_ldisc *ld;'), (2675, '\tint ret;'), (2676, ''), (2677, '\tld = tty_ldisc_ref_wait(tty);'), (2678, '\tret = put_user(ld->ops->num, p);'), (2679, '\ttty_ldisc_deref(ld);'), (2680, '\treturn ret;'), (2681, '}'), (2682, ''), (2909, '\t\treturn tiocgetd(tty, p);')], 'deleted': [(2887, '\t\treturn put_user(tty->ldisc->ops->num, (int __user *)p);')]}"
+"fixes #574, new checks on plugin section in URL","{'added': [(35, '  if (empty($sections[$i]))'), (39, '    continue;'), (40, '  }'), (41, ''), (42, ""  if ($sections[$i] == '..' or !preg_match('/^[a-zA-Z_\\.-]+$/', $sections[$i]))""), (43, '  {'), (44, ""    die('invalid section token ['.htmlentities($sections[$i]).']');"")], 'deleted': [(35, ""  if (empty($sections[$i]) or $sections[$i]=='..')"")]}"
+"Fallback to default collation connection
+
+If user supplied wrong string we should gracefully fallback.
+
+Signed-off-by: Michal Čihař <michal@cihar.com>","{'added': [(1815, '                $result = $this->tryQuery('), (1822, '                if ($result === false) {'), (1823, '                    trigger_error('), (1824, ""                        __('Failed to set configured collation connection!'),""), (1825, '                        E_USER_WARNING'), (1826, '                    );'), (1827, '                    $this->query('), (1828, '                        ""SET collation_connection = \'""'), (1829, '                        . PMA_Util::sqlAddSlashes($default_collation)'), (1830, '                        . ""\';"",'), (1831, '                        $link,'), (1832, '                        self::QUERY_STORE'), (1833, '                    );'), (1834, '                }')], 'deleted': [(1815, '                $this->query(')]}"
+"Can not use PMA_fatalError when including fails
+
+Signed-off-by: Michal Čihař <michal@cihar.com>","{'added': [(18, ""    die('Bad invocation!');"")], 'deleted': [(18, ""    PMA_fatalError('Bad invocation!');"")]}"
+"Do not process subforms with PMA_MINIMUM_COMMON
+
+In such case needed infrastructure is not loaded, so related code won't
+work anyway.
+
+Signed-off-by: Michal Čihař <michal@cihar.com>","{'added': [(234, ""if (isset($_POST['usesubform']) && ! defined('PMA_MINIMUM_COMMON')) {"")], 'deleted': [(234, ""if (isset($_POST['usesubform'])) {"")]}"
+"Include common libraries in setup
+
+We use PMA_fatalError which in turn needs Response and related objects.
+
+Signed-off-by: Michal Čihař <michal@cihar.com>","{'added': [(140, ""if (! defined('PMA_MINIMUM_COMMON') || defined('PMA_SETUP')) {"")], 'deleted': [(140, ""if (! defined('PMA_MINIMUM_COMMON')) {"")]}"
+"Use phpseclib's Crypt::Random to generate CSRF token
+
+Signed-off-by: Michal Čihař <michal@cihar.com>","{'added': [(16, ""require PHPSECLIB_INC_DIR . '/Crypt/Random.php';""), (17, ''), (116, ""    $_SESSION[' PMA_token '] = bin2hex(phpseclib\\Crypt\\Random::string(16));""), (135, ""    $_SESSION[' PMA_token '] = bin2hex(phpseclib\\Crypt\\Random::string(16));"")], 'deleted': [(114, ""    $_SESSION[' PMA_token '] = md5(uniqid(rand(), true));""), (133, ""    $_SESSION[' PMA_token '] = md5(uniqid(rand(), true));"")]}"
+"atl2: Disable unimplemented scatter/gather feature
+
+atl2 includes NETIF_F_SG in hw_features even though it has no support
+for non-linear skbs.  This bug was originally harmless since the
+driver does not claim to implement checksum offload and that used to
+be a requirement for SG.
+
+Now that SG and checksum offload are independent features, if you
+explicitly enable SG *and* use one of the rare protocols that can use
+SG without checkusm offload, this potentially leaks sensitive
+information (before you notice that it just isn't working).  Therefore
+this obscure bug has been designated CVE-2016-2117.
+
+Reported-by: Justin Yackoski <jyackoski@crypto-nite.com>
+Signed-off-by: Ben Hutchings <ben@decadent.org.uk>
+Fixes: ec5f06156423 (""net: Kill link between CSUM and SG features."")
+Signed-off-by: David S. Miller <davem@davemloft.net>","{'added': [(1415, '\tnetdev->hw_features = NETIF_F_HW_VLAN_CTAG_RX;')], 'deleted': [(1415, '\tnetdev->hw_features = NETIF_F_SG | NETIF_F_HW_VLAN_CTAG_RX;')]}"
+"bpf: fix branch offset adjustment on backjumps after patching ctx expansion
+
+When ctx access is used, the kernel often needs to expand/rewrite
+instructions, so after that patching, branch offsets have to be
+adjusted for both forward and backward jumps in the new eBPF program,
+but for backward jumps it fails to account the delta. Meaning, for
+example, if the expansion happens exactly on the insn that sits at
+the jump target, it doesn't fix up the back jump offset.
+
+Analysis on what the check in adjust_branches() is currently doing:
+
+  /* adjust offset of jmps if necessary */
+  if (i < pos && i + insn->off + 1 > pos)
+    insn->off += delta;
+  else if (i > pos && i + insn->off + 1 < pos)
+    insn->off -= delta;
+
+First condition (forward jumps):
+
+  Before:                         After:
+
+  insns[0]                        insns[0]
+  insns[1] <--- i/insn            insns[1] <--- i/insn
+  insns[2] <--- pos               insns[P] <--- pos
+  insns[3]                        insns[P]  `------| delta
+  insns[4] <--- target_X          insns[P]   `-----|
+  insns[5]                        insns[3]
+                                  insns[4] <--- target_X
+                                  insns[5]
+
+First case is if we cross pos-boundary and the jump instruction was
+before pos. This is handeled correctly. I.e. if i == pos, then this
+would mean our jump that we currently check was the patchlet itself
+that we just injected. Since such patchlets are self-contained and
+have no awareness of any insns before or after the patched one, the
+delta is correctly not adjusted. Also, for the second condition in
+case of i + insn->off + 1 == pos, means we jump to that newly patched
+instruction, so no offset adjustment are needed. That part is correct.
+
+Second condition (backward jumps):
+
+  Before:                         After:
+
+  insns[0]                        insns[0]
+  insns[1] <--- target_X          insns[1] <--- target_X
+  insns[2] <--- pos <-- target_Y  insns[P] <--- pos <-- target_Y
+  insns[3]                        insns[P]  `------| delta
+  insns[4] <--- i/insn            insns[P]   `-----|
+  insns[5]                        insns[3]
+                                  insns[4] <--- i/insn
+                                  insns[5]
+
+Second interesting case is where we cross pos-boundary and the jump
+instruction was after pos. Backward jump with i == pos would be
+impossible and pose a bug somewhere in the patchlet, so the first
+condition checking i > pos is okay only by itself. However, i +
+insn->off + 1 < pos does not always work as intended to trigger the
+adjustment. It works when jump targets would be far off where the
+delta wouldn't matter. But, for example, where the fixed insn->off
+before pointed to pos (target_Y), it now points to pos + delta, so
+that additional room needs to be taken into account for the check.
+This means that i) both tests here need to be adjusted into pos + delta,
+and ii) for the second condition, the test needs to be <= as pos
+itself can be a target in the backjump, too.
+
+Fixes: 9bac3d6d548e (""bpf: allow extended BPF programs access skb fields"")
+Signed-off-by: Daniel Borkmann <daniel@iogearbox.net>
+Signed-off-by: David S. Miller <davem@davemloft.net>","{'added': [(2085, '\t\telse if (i > pos + delta && i + insn->off + 1 <= pos + delta)')], 'deleted': [(2085, '\t\telse if (i > pos && i + insn->off + 1 < pos)')]}"
+Fixes #14635 - bump safemode version to fix the unwanted inspect issue,"{'added': [(22, ""gem 'safemode', '~> 1.2', '>= 1.2.4'"")], 'deleted': [(22, ""gem 'safemode', '~> 1.2'"")]}"
+"USB: usbfs: fix potential infoleak in devio
+
+The stack object “ci” has a total size of 8 bytes. Its last 3 bytes
+are padding bytes which are not initialized and leaked to userland
+via “copy_to_user”.
+
+Signed-off-by: Kangjie Lu <kjlu@gatech.edu>
+Signed-off-by: Greg Kroah-Hartman <gregkh@linuxfoundation.org>","{'added': [(1319, '\tstruct usbdevfs_connectinfo ci;'), (1320, ''), (1321, '\tmemset(&ci, 0, sizeof(ci));'), (1322, '\tci.devnum = ps->dev->devnum;'), (1323, '\tci.slow = ps->dev->speed == USB_SPEED_LOW;')], 'deleted': [(1319, '\tstruct usbdevfs_connectinfo ci = {'), (1320, '\t\t.devnum = ps->dev->devnum,'), (1321, '\t\t.slow = ps->dev->speed == USB_SPEED_LOW'), (1322, '\t};')]}"
+"net: fix infoleak in rtnetlink
+
+The stack object “map” has a total size of 32 bytes. Its last 4
+bytes are padding generated by compiler. These padding bytes are
+not initialized and sent out via “nla_put”.
+
+Signed-off-by: Kangjie Lu <kjlu@gatech.edu>
+Signed-off-by: David S. Miller <davem@davemloft.net>","{'added': [(1183, '\tstruct rtnl_link_ifmap map;'), (1184, ''), (1185, '\tmemset(&map, 0, sizeof(map));'), (1186, '\tmap.mem_start   = dev->mem_start;'), (1187, '\tmap.mem_end     = dev->mem_end;'), (1188, '\tmap.base_addr   = dev->base_addr;'), (1189, '\tmap.irq         = dev->irq;'), (1190, '\tmap.dma         = dev->dma;'), (1191, '\tmap.port        = dev->if_port;'), (1192, '')], 'deleted': [(1183, '\tstruct rtnl_link_ifmap map = {'), (1184, '\t\t.mem_start   = dev->mem_start,'), (1185, '\t\t.mem_end     = dev->mem_end,'), (1186, '\t\t.base_addr   = dev->base_addr,'), (1187, '\t\t.irq         = dev->irq,'), (1188, '\t\t.dma         = dev->dma,'), (1189, '\t\t.port        = dev->if_port,'), (1190, '\t};')]}"
+"get_rock_ridge_filename(): handle malformed NM entries
+
+Payloads of NM entries are not supposed to contain NUL.  When we run
+into such, only the part prior to the first NUL goes into the
+concatenation (i.e. the directory entry name being encoded by a bunch
+of NM entries).  We do stop when the amount collected so far + the
+claimed amount in the current NM entry exceed 254.  So far, so good,
+but what we return as the total length is the sum of *claimed*
+sizes, not the actual amount collected.  And that can grow pretty
+large - not unlimited, since you'd need to put CE entries in
+between to be able to get more than the maximum that could be
+contained in one isofs directory entry / continuation chunk and
+we are stop once we'd encountered 32 CEs, but you can get about 8Kb
+easily.  And that's what will be passed to readdir callback as the
+name length.  8Kb __copy_to_user() from a buffer allocated by
+__get_free_page()
+
+Cc: stable@vger.kernel.org # 0.98pl6+ (yes, really)
+Signed-off-by: Al Viro <viro@zeniv.linux.org.uk>","{'added': [(206, '\tchar *p;'), (207, '\tint len;'), (272, '\t\t\tlen = rr->len - 5;'), (273, '\t\t\tif (retnamlen + len >= 254) {'), (277, ""\t\t\tp = memchr(rr->u.NM.name, '\\0', len);""), (278, '\t\t\tif (unlikely(p))'), (279, '\t\t\t\tlen = p - rr->u.NM.name;'), (280, '\t\t\tmemcpy(retname + retnamlen, rr->u.NM.name, len);'), (281, '\t\t\tretnamlen += len;'), (282, ""\t\t\tretname[retnamlen] = '\\0';"")], 'deleted': [(270, '\t\t\tif ((strlen(retname) + rr->len - 5) >= 254) {'), (274, '\t\t\tstrncat(retname, rr->u.NM.name, rr->len - 5);'), (275, '\t\t\tretnamlen += rr->len - 5;')]}"
+"tipc: fix an infoleak in tipc_nl_compat_link_dump
+
+link_info.str is a char array of size 60. Memory after the NULL
+byte is not initialized. Sending the whole object out can cause
+a leak.
+
+Signed-off-by: Kangjie Lu <kjlu@gatech.edu>
+Signed-off-by: David S. Miller <davem@davemloft.net>","{'added': [(607, '\tnla_strlcpy(link_info.str, nla_data(link[TIPC_NLA_LINK_NAME]),'), (608, '\t\t    TIPC_MAX_LINK_NAME);')], 'deleted': [(607, '\tstrcpy(link_info.str, nla_data(link[TIPC_NLA_LINK_NAME]));')]}"
+"one more hash_equals, and better CEK decryption error handling","{'added': [(171, '        $this->generateContentEncryptionKey(null); # NOTE: run this always not to make timing difference'), (172, '        $fake_content_encryption_key = $this->content_encryption_key;'), (199, '            $this->content_encryption_key = $fake_content_encryption_key;'), (287, '        if (hash_equals($this->authentication_tag, $this->calculateAuthenticationTag())) {')], 'deleted': [(197, '            $this->generateContentEncryptionKey(null);'), (285, '        if ($this->authentication_tag === $this->calculateAuthenticationTag()) {')]}"
+explicit alg check & secure hash comparison,"{'added': [(126, '            $using_autodetected_alg = true;'), (132, '                if ($using_autodetected_alg) {'), (133, '                    throw new JOSE_Exception_UnexpectedAlgorithm('), (134, ""                        'HMAC algs MUST be explicitly specified as $expected_alg'""), (135, '                    );'), (136, '                }'), (137, '                $hmac_hash = hash_hmac($this->digest(), $signature_base_string, $public_key_or_secret, true);'), (138, '                return hash_equals($this->signature, $hmac_hash);')], 'deleted': [(125, '            # NOTE: might better to warn here'), (132, '                return $this->signature === hash_hmac($this->digest(), $signature_base_string, $public_key_or_secret, true);')]}"
+"one more hash_equals, and better CEK decryption error handling","{'added': [(171, '        $this->generateContentEncryptionKey(null); # NOTE: run this always not to make timing difference'), (172, '        $fake_content_encryption_key = $this->content_encryption_key;'), (199, '            $this->content_encryption_key = $fake_content_encryption_key;'), (287, '        if (hash_equals($this->authentication_tag, $this->calculateAuthenticationTag())) {')], 'deleted': [(197, '            $this->generateContentEncryptionKey(null);'), (285, '        if ($this->authentication_tag === $this->calculateAuthenticationTag()) {')]}"
+"tcp: make challenge acks less predictable
+
+Yue Cao claims that current host rate limiting of challenge ACKS
+(RFC 5961) could leak enough information to allow a patient attacker
+to hijack TCP sessions. He will soon provide details in an academic
+paper.
+
+This patch increases the default limit from 100 to 1000, and adds
+some randomization so that the attacker can no longer hijack
+sessions without spending a considerable amount of probes.
+
+Based on initial analysis and patch from Linus.
+
+Note that we also have per socket rate limiting, so it is tempting
+to remove the host limit in the future.
+
+v2: randomize the count of challenge acks per second, not the period.
+
+Fixes: 282f23c6ee34 (""tcp: implement RFC 5961 3.2"")
+Reported-by: Yue Cao <ycao009@ucr.edu>
+Signed-off-by: Eric Dumazet <edumazet@google.com>
+Suggested-by: Linus Torvalds <torvalds@linux-foundation.org>
+Cc: Yuchung Cheng <ycheng@google.com>
+Cc: Neal Cardwell <ncardwell@google.com>
+Acked-by: Neal Cardwell <ncardwell@google.com>
+Acked-by: Yuchung Cheng <ycheng@google.com>
+Signed-off-by: David S. Miller <davem@davemloft.net>","{'added': [(90, 'int sysctl_tcp_challenge_ack_limit = 1000;'), (3461, '\tu32 count, now;'), (3469, '\t/* Then check host-wide RFC 5961 rate limit. */'), (3472, '\t\tu32 half = (sysctl_tcp_challenge_ack_limit + 1) >> 1;'), (3473, ''), (3475, '\t\tWRITE_ONCE(challenge_count, half +'), (3476, '\t\t\t   prandom_u32_max(sysctl_tcp_challenge_ack_limit));'), (3478, '\tcount = READ_ONCE(challenge_count);'), (3479, '\tif (count > 0) {'), (3480, '\t\tWRITE_ONCE(challenge_count, count - 1);')], 'deleted': [(90, 'int sysctl_tcp_challenge_ack_limit = 100;'), (3461, '\tu32 now;'), (3469, '\t/* Then check the check host-wide RFC 5961 rate limit. */'), (3473, '\t\tchallenge_count = 0;'), (3475, '\tif (++challenge_count <= sysctl_tcp_challenge_ack_limit) {')]}"
+"Validate input of validator
+
+We can not trust the input here, so we can expect anything and deal with
+missing parameters or invalid values.
+
+Signed-off-by: Michal Čihař <michal@cihar.com>","{'added': [(11, 'use PMA\\libraries\\Util;'), (284, ""        if (empty($values['Servers/1/auth_type'])) {""), (285, ""            $values['Servers/1/auth_type'] = '';""), (286, ""            $result['Servers/1/auth_type'] = __('Invalid authentication type!');""), (287, '            $error = true;'), (288, '        }'), (317, ""            $password = !empty($values['Servers/1/nopassword']) && $values['Servers/1/nopassword'] ? null""), (318, ""                : (empty($values['Servers/1/password']) ? '' : $values['Servers/1/password']);""), (320, ""                empty($values['Servers/1/connect_type']) ? '' : $values['Servers/1/connect_type'],""), (321, ""                empty($values['Servers/1/host']) ? '' : $values['Servers/1/host'],""), (322, ""                empty($values['Servers/1/port']) ? '' : $values['Servers/1/port'],""), (323, ""                empty($values['Servers/1/socket']) ? '' : $values['Servers/1/socket'],""), (324, ""                empty($values['Servers/1/user']) ? '' : $values['Servers/1/user'],""), (354, ""        if (empty($values['Servers/1/pmadb'])) {""), (359, ""        if (empty($values['Servers/1/controluser'])) {""), (366, ""        if (empty($values['Servers/1/controlpass'])) {""), (375, ""                empty($values['Servers/1/connect_type']) ? '' : $values['Servers/1/connect_type'],""), (376, ""                empty($values['Servers/1/host']) ? '' : $values['Servers/1/host'],""), (377, ""                empty($values['Servers/1/port']) ? '' : $values['Servers/1/port'],""), (378, ""                empty($values['Servers/1/socket']) ? '' : $values['Servers/1/socket'],""), (379, ""                empty($values['Servers/1/controluser']) ? '' : $values['Servers/1/controluser'],""), (380, ""                empty($values['Servers/1/controlpass']) ? '' : $values['Servers/1/controlpass'],""), (381, ""                'Server_pmadb'""), (403, '        if (empty($values[$path])) {'), (412, ""        preg_match('/' . Util::requestString($values[$path]) . '/', '', $matches);""), (440, '        if (is_array($values[$path]) || is_object($values[$path])) {'), (444, '                $v = Util::requestString($v);'), (496, '        if (empty($values[$path])) {'), (500, '        $value = Util::requestString($values[$path]);'), (501, ''), (502, '        if (intval($value) != $value'), (503, '            || (! $allow_neg && $value < 0)'), (504, '            || (! $allow_zero && $value == 0)'), (505, '            || $value > $max_value'), (591, '        if (!isset($values[$path])) {'), (592, ""            return '';""), (593, '        }'), (594, '        $result = preg_match($regex, Util::requestString($values[$path]));')], 'deleted': [(311, ""            $password = $values['Servers/1/nopassword'] ? null""), (312, ""                : $values['Servers/1/password'];""), (314, ""                $values['Servers/1/connect_type'],""), (315, ""                $values['Servers/1/host'],""), (316, ""                $values['Servers/1/port'],""), (317, ""                $values['Servers/1/socket'],""), (318, ""                $values['Servers/1/user'],""), (348, ""        if ($values['Servers/1/pmadb'] == '') {""), (353, ""        if ($values['Servers/1/controluser'] == '') {""), (360, ""        if ($values['Servers/1/controlpass'] == '') {""), (369, ""                $values['Servers/1/connect_type'],""), (370, ""                $values['Servers/1/host'], $values['Servers/1/port'],""), (371, ""                $values['Servers/1/socket'], $values['Servers/1/controluser'],""), (372, ""                $values['Servers/1/controlpass'], 'Server_pmadb'""), (394, ""        if ($values[$path] == '') {""), (403, ""        preg_match('/' . $values[$path] . '/', '', $matches);""), (431, '        if (is_array($values[$path])) {'), (486, ""        if ($values[$path] === '') {""), (490, '        if (intval($values[$path]) != $values[$path]'), (491, '            || (! $allow_neg && $values[$path] < 0)'), (492, '            || (! $allow_zero && $values[$path] == 0)'), (493, '            || $values[$path] > $max_value'), (579, '        $result = preg_match($regex, $values[$path]);')]}"
+"Properly convert POST parameters
+
+We can get array instead of single parameter, so handle this gracefully.
+
+Signed-off-by: Michal Čihař <michal@cihar.com>","{'added': [(642, ""                    settype($this->_trimString($_POST[$key]), 'float');""), (647, '                        settype($this->_trimString($_POST[$key]), $type);'), (663, '                    $_POST[$key] = $this->_trimString($_POST[$key]);'), (879, '            $v = $this->_trimString($v);'), (885, ''), (886, '    /*'), (887, '     * Converts given (request) paramter to string'), (888, '     *'), (889, '     * @param mixed $value Value to convert'), (890, '     *'), (891, '     * @return string'), (892, '     */'), (893, '    private function _trimString($value)'), (894, '    {'), (895, '        while (is_array($value)) {'), (896, '            $value = reset($value);'), (897, '        }'), (898, '        return trim((string)$value);'), (899, '    }')], 'deleted': [(642, ""                    settype($_POST[$key], 'float');""), (647, '                        settype($_POST[$key], $type);'), (663, '                    $_POST[$key] = trim($_POST[$key]);'), (879, '            $v = trim($v);')]}"
+"Improve error handling in OpenID example
+
+- properly check parameter types
+- catch all exceptions (eg. network error)
+
+Signed-off-by: Michal Čihař <michal@cihar.com>","{'added': [(101, ""if (isset($_POST['identifier']) && is_string($_POST['identifier'])) {""), (103, ""} else if (isset($_SESSION['identifier']) && is_string($_SESSION['identifier'])) {""), (112, '} catch (Exception $e) {')], 'deleted': [(101, ""if (isset($_POST['identifier'])) {""), (103, ""} else if (isset($_SESSION['identifier'])) {""), (112, '} catch (OpenID_Exception $e) {')]}"
+"Fix error reporting on invalid request data
+
+Signed-off-by: Michal Čihař <michal@cihar.com>","{'added': [(29, '    $result = sprintf('), (30, ""        __('Wrong data or no validation for %s'),""), (31, ""        implode(',', $vids)""), (32, '    );')], 'deleted': [(29, ""    $result = 'Wrong data or no validation for ' . $vids;"")]}"
+"Update referrer <meta> to match current standards
+
+Signed-off-by: Michal Čihař <michal@cihar.com>","{'added': [(642, '        $retval .= \'<meta name=""referrer"" content=""no-referrer"" />\';')], 'deleted': [(642, '        $retval .= \'<meta name=""referrer"" content=""none"" />\';')]}"
+"netfilter: nfnetlink: correctly validate length of batch messages
+
+If nlh->nlmsg_len is zero then an infinite loop is triggered because
+'skb_pull(skb, msglen);' pulls zero bytes.
+
+The calculation in nlmsg_len() underflows if 'nlh->nlmsg_len <
+NLMSG_HDRLEN' which bypasses the length validation and will later
+trigger an out-of-bound read.
+
+If the length validation does fail then the malformed batch message is
+copied back to userspace. However, we cannot do this because the
+nlh->nlmsg_len can be invalid. This leads to an out-of-bounds read in
+netlink_ack:
+
+    [   41.455421] ==================================================================
+    [   41.456431] BUG: KASAN: slab-out-of-bounds in memcpy+0x1d/0x40 at addr ffff880119e79340
+    [   41.456431] Read of size 4294967280 by task a.out/987
+    [   41.456431] =============================================================================
+    [   41.456431] BUG kmalloc-512 (Not tainted): kasan: bad access detected
+    [   41.456431] -----------------------------------------------------------------------------
+    ...
+    [   41.456431] Bytes b4 ffff880119e79310: 00 00 00 00 d5 03 00 00 b0 fb fe ff 00 00 00 00  ................
+    [   41.456431] Object ffff880119e79320: 20 00 00 00 10 00 05 00 00 00 00 00 00 00 00 00   ...............
+    [   41.456431] Object ffff880119e79330: 14 00 0a 00 01 03 fc 40 45 56 11 22 33 10 00 05  .......@EV.""3...
+    [   41.456431] Object ffff880119e79340: f0 ff ff ff 88 99 aa bb 00 14 00 0a 00 06 fe fb  ................
+                                            ^^ start of batch nlmsg with
+                                               nlmsg_len=4294967280
+    ...
+    [   41.456431] Memory state around the buggy address:
+    [   41.456431]  ffff880119e79400: 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00
+    [   41.456431]  ffff880119e79480: 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00
+    [   41.456431] >ffff880119e79500: 00 00 00 00 fc fc fc fc fc fc fc fc fc fc fc fc
+    [   41.456431]                                ^
+    [   41.456431]  ffff880119e79580: fc fc fc fc fc fc fc fc fc fc fc fc fc fc fc fc
+    [   41.456431]  ffff880119e79600: fc fc fc fc fc fc fc fc fc fc fb fb fb fb fb fb
+    [   41.456431] ==================================================================
+
+Fix this with better validation of nlh->nlmsg_len and by setting
+NFNL_BATCH_FAILURE if any batch message fails length validation.
+
+CAP_NET_ADMIN is required to trigger the bugs.
+
+Fixes: 9ea2aa8b7dba (""netfilter: nfnetlink: validate nfnetlink header from batch"")
+Signed-off-by: Phil Turnbull <phil.turnbull@oracle.com>
+Signed-off-by: Pablo Neira Ayuso <pablo@netfilter.org>","{'added': [(331, '\t\tif (nlh->nlmsg_len < NLMSG_HDRLEN ||'), (332, '\t\t    skb->len < nlh->nlmsg_len ||'), (333, '\t\t    nlmsg_len(nlh) < sizeof(struct nfgenmsg)) {'), (334, '\t\t\tnfnl_err_reset(&err_list);'), (335, '\t\t\tstatus |= NFNL_BATCH_FAILURE;'), (336, '\t\t\tgoto done;')], 'deleted': [(331, '\t\tif (nlmsg_len(nlh) < sizeof(struct nfgenmsg) ||'), (332, '\t\t    skb->len < nlh->nlmsg_len) {'), (333, '\t\t\terr = -EINVAL;'), (334, '\t\t\tgoto ack;')]}"
+"dracut.sh: create the initramfs non-world readable also if early cpio is used
+
+Fixes: 5f2c30d9bcd614d546d5c55c6897e33f88b9ab90
+Previously fixed CVE-2012-4453: e1b48995c26c4f06d1a718539cb1bd5b0179af91
+
+Signed-off-by: Andreas Stieger <astieger@suse.com>","{'added': [(1703, '            umask 077; cd ""$early_cpio_dir/d""')], 'deleted': [(1703, '            cd ""$early_cpio_dir/d""')]}"
+regression fix last vulnerability fix for sanitizing order/direction params,"{'added': [(121, ""//        $this->order = empty($params['order']) ? 'id' : preg_replace('/[^a-zAZ_]/','',$params['order']);""), (122, ""        $this->order = empty($params['order']) ? 'id' : expString::escape($params['order']);""), (184, '        // filter out invalid order & direction'), (185, ""        if(preg_match('/[^a-zA-Z_][^a-zA-Z0-9_]*/', $this->order))"")], 'deleted': [(121, ""        $this->order = empty($params['order']) ? 'id' : preg_replace('/[^a-z\\_]/i','',$params['order']);""), (183, ""        if(!preg_match('/[a-zA-Z_\\x7f-\\xff][a-zA-Z0-9_\\x7f-\\xff]*/', $this->order))"")]}"
+"fix minor infoleak in get_user_ex()
+
+get_user_ex(x, ptr) should zero x on failure.  It's not a lot of a leak
+(at most we are leaking uninitialized 64bit value off the kernel stack,
+and in a fairly constrained situation, at that), but the fix is trivial,
+so...
+
+Cc: stable@vger.kernel.org
+Signed-off-by: Al Viro <viro@zeniv.linux.org.uk>
+[ This sat in different branch from the uaccess fixes since mid-August ]
+Signed-off-by: Linus Torvalds <torvalds@linux-foundation.org>","{'added': [(436, '\t\t     "".section .fixup,\\""ax\\""\\n""\t\t\t\t\\'), (437, '                     ""3:xor""itype"" %""rtype""0,%""rtype""0\\n""\t\t\\'), (438, '\t\t     ""  jmp 2b\\n""\t\t\t\t\t\\'), (439, '\t\t     "".previous\\n""\t\t\t\t\t\\'), (440, '\t\t     _ASM_EXTABLE_EX(1b, 3b)\t\t\t\t\\')], 'deleted': [(436, '\t\t     _ASM_EXTABLE_EX(1b, 2b)\t\t\t\t\\')]}"
+better fix security vulnerability in editor preview; reported by fyth,"{'added': [(65, '        } else {'), (66, '            $this->params[\'editor\'] = preg_replace(""/[^[:alnum:][:space:]]/u"", \'\', $this->params[\'editor\']);'), (176, ""            $demo = self::getEditorSettings($this->params['id'], $this->params['editor']);"")], 'deleted': [(174, ""            $demo = self::getEditorSettings($this->params['id'], expString::escape($this->params['editor']));"")]}"
+"fix security vulnerability to editing addresses, countries, and regions; reported by pang0lin","{'added': [(35, ""        'process' => 'Import External Addresses',""), (36, ""        'edit_country' => 'Edit Country',""), (37, ""        'delete_country' => 'Delete Country',""), (38, ""        'update_country' => 'Update Country',""), (39, ""        'edit_region' => 'Edit Region',""), (40, ""        'delete_region' => 'Delete Region',""), (41, ""        'update_region' => 'Update Region',""), (44, ""        'edit'=>'You must be logged in to perform this action',""), (75, '        global $user;'), (76, ''), (77, ""        $id = !empty($this->params['id']) ? $this->params['id'] : null;""), (78, ''), (79, '        // check to see if we should be editing.  You either need to be an admin, or editing own account.'), (80, '        if ($user->isAdmin() || ($user->id == $id)) {'), (81, '            $record = new address($id);'), (82, '        } else {'), (83, ""            flash('error', gt('You do not have the proper permissions to edit this address'));""), (84, '            expHistory::back();'), (85, '        }'), (86, ''), (103, ""\t\texpQueue::flashIfNotLoggedIn('message',gt('You must be logged in to manage your address book.'));  //fixme is this redundant to common routine?"")], 'deleted': [(35, ""        'process' => 'Import External Addresses'""), (68, ""        if((isset($this->params['id']))) $record = new address(intval($this->params['id']));""), (69, '        else $record = null;'), (86, ""\t\texpQueue::flashIfNotLoggedIn('message',gt('You must be logged in to manage your address book.'));"")]}"
+"KVM: x86: drop error recovery in em_jmp_far and em_ret_far
+
+em_jmp_far and em_ret_far assumed that setting IP can only fail in 64
+bit mode, but syzkaller proved otherwise (and SDM agrees).
+Code segment was restored upon failure, but it was left uninitialized
+outside of long mode, which could lead to a leak of host kernel stack.
+We could have fixed that by always saving and restoring the CS, but we
+take a simpler approach and just break any guest that manages to fail
+as the error recovery is error-prone and modern CPUs don't need emulator
+for this.
+
+Found by syzkaller:
+
+  WARNING: CPU: 2 PID: 3668 at arch/x86/kvm/emulate.c:2217 em_ret_far+0x428/0x480
+  Kernel panic - not syncing: panic_on_warn set ...
+
+  CPU: 2 PID: 3668 Comm: syz-executor Not tainted 4.9.0-rc4+ #49
+  Hardware name: QEMU Standard PC (i440FX + PIIX, 1996), BIOS Bochs 01/01/2011
+   [...]
+  Call Trace:
+   [...] __dump_stack lib/dump_stack.c:15
+   [...] dump_stack+0xb3/0x118 lib/dump_stack.c:51
+   [...] panic+0x1b7/0x3a3 kernel/panic.c:179
+   [...] __warn+0x1c4/0x1e0 kernel/panic.c:542
+   [...] warn_slowpath_null+0x2c/0x40 kernel/panic.c:585
+   [...] em_ret_far+0x428/0x480 arch/x86/kvm/emulate.c:2217
+   [...] em_ret_far_imm+0x17/0x70 arch/x86/kvm/emulate.c:2227
+   [...] x86_emulate_insn+0x87a/0x3730 arch/x86/kvm/emulate.c:5294
+   [...] x86_emulate_instruction+0x520/0x1ba0 arch/x86/kvm/x86.c:5545
+   [...] emulate_instruction arch/x86/include/asm/kvm_host.h:1116
+   [...] complete_emulated_io arch/x86/kvm/x86.c:6870
+   [...] complete_emulated_mmio+0x4e9/0x710 arch/x86/kvm/x86.c:6934
+   [...] kvm_arch_vcpu_ioctl_run+0x3b7a/0x5a90 arch/x86/kvm/x86.c:6978
+   [...] kvm_vcpu_ioctl+0x61e/0xdd0 arch/x86/kvm/../../../virt/kvm/kvm_main.c:2557
+   [...] vfs_ioctl fs/ioctl.c:43
+   [...] do_vfs_ioctl+0x18c/0x1040 fs/ioctl.c:679
+   [...] SYSC_ioctl fs/ioctl.c:694
+   [...] SyS_ioctl+0x8f/0xc0 fs/ioctl.c:685
+   [...] entry_SYSCALL_64_fastpath+0x1f/0xc2
+
+Reported-by: Dmitry Vyukov <dvyukov@google.com>
+Cc: stable@vger.kernel.org
+Fixes: d1442d85cc30 (""KVM: x86: Handle errors when RIP is set during far jumps"")
+Signed-off-by: Radim Krčmář <rkrcmar@redhat.com>","{'added': [(2108, '\tunsigned short sel;'), (2109, '\tstruct desc_struct new_desc;'), (2121, '\t/* Error handling is not implemented. */'), (2122, '\tif (rc != X86EMUL_CONTINUE)'), (2123, '\t\treturn X86EMUL_UNHANDLEABLE;'), (2124, ''), (2185, '\tstruct desc_struct new_desc;'), (2202, '\t/* Error handling is not implemented. */'), (2203, '\tif (rc != X86EMUL_CONTINUE)'), (2204, '\t\treturn X86EMUL_UNHANDLEABLE;'), (2205, '')], 'deleted': [(2108, '\tunsigned short sel, old_sel;'), (2109, '\tstruct desc_struct old_desc, new_desc;'), (2110, '\tconst struct x86_emulate_ops *ops = ctxt->ops;'), (2113, '\t/* Assignment of RIP may only fail in 64-bit mode */'), (2114, '\tif (ctxt->mode == X86EMUL_MODE_PROT64)'), (2115, '\t\tops->get_segment(ctxt, &old_sel, &old_desc, NULL,'), (2116, '\t\t\t\t VCPU_SREG_CS);'), (2117, ''), (2127, '\tif (rc != X86EMUL_CONTINUE) {'), (2128, '\t\tWARN_ON(ctxt->mode != X86EMUL_MODE_PROT64);'), (2129, '\t\t/* assigning eip failed; restore the old cs */'), (2130, '\t\tops->set_segment(ctxt, old_sel, &old_desc, 0, VCPU_SREG_CS);'), (2131, '\t\treturn rc;'), (2132, '\t}'), (2192, '\tu16 old_cs;'), (2194, '\tstruct desc_struct old_desc, new_desc;'), (2195, '\tconst struct x86_emulate_ops *ops = ctxt->ops;'), (2196, ''), (2197, '\tif (ctxt->mode == X86EMUL_MODE_PROT64)'), (2198, '\t\tops->get_segment(ctxt, &old_cs, &old_desc, NULL,'), (2199, '\t\t\t\t VCPU_SREG_CS);'), (2216, '\tif (rc != X86EMUL_CONTINUE) {'), (2217, '\t\tWARN_ON(ctxt->mode != X86EMUL_MODE_PROT64);'), (2218, '\t\tops->set_segment(ctxt, old_cs, &old_desc, 0, VCPU_SREG_CS);'), (2219, '\t}')]}"
+"ALSA: timer: Fix race between read and ioctl
+
+The read from ALSA timer device, the function snd_timer_user_tread(),
+may access to an uninitialized struct snd_timer_user fields when the
+read is concurrently performed while the ioctl like
+snd_timer_user_tselect() is invoked.  We have already fixed the races
+among ioctls via a mutex, but we seem to have forgotten the race
+between read vs ioctl.
+
+This patch simply applies (more exactly extends the already applied
+range of) tu->ioctl_lock in snd_timer_user_tread() for closing the
+race window.
+
+Reported-by: Alexander Potapenko <glider@google.com>
+Tested-by: Alexander Potapenko <glider@google.com>
+Cc: <stable@vger.kernel.org>
+Signed-off-by: Takashi Iwai <tiwai@suse.de>","{'added': [(1962, '\tmutex_lock(&tu->ioctl_lock);'), (1978, '\t\t\tmutex_unlock(&tu->ioctl_lock);'), (1980, '\t\t\tmutex_lock(&tu->ioctl_lock);'), (2018, '\tmutex_unlock(&tu->ioctl_lock);')], 'deleted': [(1997, '\t\tmutex_lock(&tu->ioctl_lock);'), (2007, '\t\tmutex_unlock(&tu->ioctl_lock);')]}"
+"Sanitize 'move_pages()' permission checks
+
+The 'move_paghes()' system call was introduced long long ago with the
+same permission checks as for sending a signal (except using
+CAP_SYS_NICE instead of CAP_SYS_KILL for the overriding capability).
+
+That turns out to not be a great choice - while the system call really
+only moves physical page allocations around (and you need other
+capabilities to do a lot of it), you can check the return value to map
+out some the virtual address choices and defeat ASLR of a binary that
+still shares your uid.
+
+So change the access checks to the more common 'ptrace_may_access()'
+model instead.
+
+This tightens the access checks for the uid, and also effectively
+changes the CAP_SYS_NICE check to CAP_SYS_PTRACE, but it's unlikely that
+anybody really _uses_ this legacy system call any more (we hav ebetter
+NUMA placement models these days), so I expect nobody to notice.
+
+Famous last words.
+
+Reported-by: Otto Ebeling <otto.ebeling@iki.fi>
+Acked-by: Eric W. Biederman <ebiederm@xmission.com>
+Cc: Willy Tarreau <w@1wt.eu>
+Cc: stable@kernel.org
+Signed-off-by: Linus Torvalds <torvalds@linux-foundation.org>","{'added': [(44, '#include <linux/ptrace.h>'), (1679, '\t * process. Use the regular ""ptrace_may_access()"" checks.'), (1681, '\tif (!ptrace_may_access(task, PTRACE_MODE_READ_REALCREDS)) {')], 'deleted': [(1655, '\tconst struct cred *cred = current_cred(), *tcred;'), (1679, '\t * process. The right exists if the process has administrative'), (1680, '\t * capabilities, superuser privileges or the same'), (1681, '\t * userid as the target process.'), (1683, '\ttcred = __task_cred(task);'), (1684, '\tif (!uid_eq(cred->euid, tcred->suid) && !uid_eq(cred->euid, tcred->uid) &&'), (1685, '\t    !uid_eq(cred->uid,  tcred->suid) && !uid_eq(cred->uid,  tcred->uid) &&'), (1686, '\t    !capable(CAP_SYS_NICE)) {')]}"
+"fix infoleak in waitid(2)
+
+kernel_waitid() can return a PID, an error or 0.  rusage is filled in the first
+case and waitid(2) rusage should've been copied out exactly in that case, *not*
+whenever kernel_waitid() has not returned an error.  Compat variant shares that
+braino; none of kernel_wait4() callers do, so the below ought to fix it.
+
+Reported-and-tested-by: Alexander Potapenko <glider@google.com>
+Fixes: ce72a16fa705 (""wait4(2)/waitid(2): separate copying rusage to userland"")
+Cc: stable@vger.kernel.org # v4.13
+Signed-off-by: Al Viro <viro@zeniv.linux.org.uk>","{'added': [(1603, ''), (1724, '\t\tif (uru) {'), (1725, '\t\t\t/* kernel_waitid() overwrites everything in ru */'), (1726, '\t\t\tif (COMPAT_USE_64BIT_TIME)'), (1727, '\t\t\t\terr = copy_to_user(uru, &ru, sizeof(ru));'), (1728, '\t\t\telse'), (1729, '\t\t\t\terr = put_compat_rusage(&ru, uru);'), (1730, '\t\t\tif (err)'), (1731, '\t\t\t\treturn -EFAULT;'), (1732, '\t\t}')], 'deleted': [(1606, '\t}'), (1607, ''), (1608, '\tif (!err) {'), (1726, '\t}'), (1727, ''), (1728, '\tif (!err && uru) {'), (1729, '\t\t/* kernel_waitid() overwrites everything in ru */'), (1730, '\t\tif (COMPAT_USE_64BIT_TIME)'), (1731, '\t\t\terr = copy_to_user(uru, &ru, sizeof(ru));'), (1732, '\t\telse'), (1733, '\t\t\terr = put_compat_rusage(&ru, uru);'), (1734, '\t\tif (err)'), (1735, '\t\t\treturn -EFAULT;')]}"
+"scsi: sg: fixup infoleak when using SG_GET_REQUEST_TABLE
+
+When calling SG_GET_REQUEST_TABLE ioctl only a half-filled table is
+returned; the remaining part will then contain stale kernel memory
+information.  This patch zeroes out the entire table to avoid this
+issue.
+
+Signed-off-by: Hannes Reinecke <hare@suse.com>
+Reviewed-by: Bart Van Assche <bart.vanassche@wdc.com>
+Reviewed-by: Christoph Hellwig <hch@lst.de>
+Reviewed-by: Eric Dumazet <edumazet@google.com>
+Signed-off-by: Martin K. Petersen <martin.petersen@oracle.com>","{'added': [(1049, '\t\t\trinfo = kzalloc(SZ_SG_REQ_INFO * SG_MAX_QUEUE,'), (1050, '\t\t\t\t\tGFP_KERNEL);')], 'deleted': [(842, '\t\tmemset(&rinfo[val], 0, SZ_SG_REQ_INFO);'), (1050, '\t\t\trinfo = kmalloc(SZ_SG_REQ_INFO * SG_MAX_QUEUE,'), (1051, '\t\t\t\t\t\t\t\tGFP_KERNEL);')]}"
+Make sure people do not access to files of other projects,"{'added': [(77, ""        $project_id = $this->request->getIntegerParam('project_id');""), (82, '            $task_project_id = $this->taskFinderModel->getProjectId($task_id);'), (84, '            if ($project_id != $task_project_id) {'), (95, ""        if (isset($file['task_id']) && $file['task_id'] != $task_id) {""), (96, '            throw new AccessForbiddenException();'), (97, ""        } else if (isset($file['project_id']) && $file['project_id'] != $project_id) {""), (98, '            throw new AccessForbiddenException();'), (99, '        }'), (100, '')], 'deleted': [(81, '            $project_id = $this->taskFinderModel->getProjectId($task_id);'), (83, ""            if ($project_id !== $this->request->getIntegerParam('project_id')) {"")]}"
+Make sure people do not access to files of other projects,"{'added': [(77, ""        $project_id = $this->request->getIntegerParam('project_id');""), (82, '            $task_project_id = $this->taskFinderModel->getProjectId($task_id);'), (84, '            if ($project_id != $task_project_id) {'), (95, ""        if (isset($file['task_id']) && $file['task_id'] != $task_id) {""), (96, '            throw new AccessForbiddenException();'), (97, ""        } else if (isset($file['project_id']) && $file['project_id'] != $project_id) {""), (98, '            throw new AccessForbiddenException();'), (99, '        }'), (100, '')], 'deleted': [(81, '            $project_id = $this->taskFinderModel->getProjectId($task_id);'), (83, ""            if ($project_id !== $this->request->getIntegerParam('project_id')) {"")]}"
+Disable unused feature.,"{'added': [(777, '#ifdef false'), (820, '#endif')], 'deleted': [(724, '\t\tinferApplicationInfo(info);')]}"
+"mm/pagewalk.c: report holes in hugetlb ranges
+
+This matters at least for the mincore syscall, which will otherwise copy
+uninitialized memory from the page allocator to userspace.  It is
+probably also a correctness error for /proc/$pid/pagemap, but I haven't
+tested that.
+
+Removing the `walk->hugetlb_entry` condition in walk_hugetlb_range() has
+no effect because the caller already checks for that.
+
+This only reports holes in hugetlb ranges to callers who have specified
+a hugetlb_entry callback.
+
+This issue was found using an AFL-based fuzzer.
+
+v2:
+ - don't crash on ->pte_hole==NULL (Andrew Morton)
+ - add Cc stable (Andrew Morton)
+
+Fixes: 1e25a271c8ac (""mincore: apply page table walker on do_mincore()"")
+Signed-off-by: Jann Horn <jannh@google.com>
+Cc: <stable@vger.kernel.org>
+Signed-off-by: Linus Torvalds <torvalds@linux-foundation.org>","{'added': [(191, ''), (192, '\t\tif (pte)'), (194, '\t\telse if (walk->pte_hole)'), (195, '\t\t\terr = walk->pte_hole(addr, next, walk);'), (196, '')], 'deleted': [(191, '\t\tif (pte && walk->hugetlb_entry)')]}"
+Improved parameter appending.,"{'added': [(223, '            if ( lc($Target) =~ /^(http:|https:|#|ftp:)/ ||'), (241, '            if (lc($Target) =~ m{^http s? :}smx || !$Self->{SessionID} ||')], 'deleted': [(223, '            if ( lc $Target =~ /^(http:|https:|#|ftp:)/ ||'), (241, '            if (lc $Target =~ m{^http s? :}smx || !$Self->{SessionID} ||')]}"
+"KVM: x86: Introduce segmented_write_std
+
+Introduces segemented_write_std.
+
+Switches from emulated reads/writes to standard read/writes in fxsave,
+fxrstor, sgdt, and sidt.  This fixes CVE-2017-2584, a longstanding
+kernel memory leak.
+
+Since commit 283c95d0e389 (""KVM: x86: emulate FXSAVE and FXRSTOR"",
+2016-11-09), which is luckily not yet in any final release, this would
+also be an exploitable kernel memory *write*!
+
+Reported-by: Dmitry Vyukov <dvyukov@google.com>
+Cc: stable@vger.kernel.org
+Fixes: 96051572c819194c37a8367624b285be10297eca
+Fixes: 283c95d0e3891b64087706b344a4b545d04a6e62
+Suggested-by: Paolo Bonzini <pbonzini@redhat.com>
+Signed-off-by: Steve Rutherford <srutherford@google.com>
+Signed-off-by: Paolo Bonzini <pbonzini@redhat.com>","{'added': [(821, 'static int segmented_write_std(struct x86_emulate_ctxt *ctxt,'), (822, '\t\t\t       struct segmented_address addr,'), (823, '\t\t\t       void *data,'), (824, '\t\t\t       unsigned int size)'), (825, '{'), (826, '\tint rc;'), (827, '\tulong linear;'), (828, ''), (829, '\trc = linearize(ctxt, addr, size, true, &linear);'), (830, '\tif (rc != X86EMUL_CONTINUE)'), (831, '\t\treturn rc;'), (832, '\treturn ctxt->ops->write_std(ctxt, linear, data, size, &ctxt->exception);'), (833, '}'), (834, ''), (3702, '\treturn segmented_write_std(ctxt, ctxt->dst.addr.mem,'), (3703, '\t\t\t\t   &desc_ptr, 2 + ctxt->op_bytes);'), (3949, '\treturn segmented_write_std(ctxt, ctxt->memop.addr.mem, &fx_state, size);'), (3991, '\trc = segmented_read_std(ctxt, ctxt->memop.addr.mem, &fx_state, 512);')], 'deleted': [(3688, '\treturn segmented_write(ctxt, ctxt->dst.addr.mem,'), (3689, '\t\t\t       &desc_ptr, 2 + ctxt->op_bytes);'), (3935, '\treturn segmented_write(ctxt, ctxt->memop.addr.mem, &fx_state, size);'), (3977, '\trc = segmented_read(ctxt, ctxt->memop.addr.mem, &fx_state, 512);')]}"
+"[backend] only allow plain files in cpio_sender
+
+No devices, sockets, directories, symlinks please...","{'added': [(451, '      } else {'), (452, '\t@s = lstat($filename);'), (453, '\tif (!@s) {'), (454, '\t  $errors->{\'data\'} .= ""$file->{\'name\'}: $filename: $!\\n"";'), (455, '\t  next;'), (456, '\t}'), (457, '\tif (-l _ || ! -f _) {'), (458, '\t  $errors->{\'data\'} .= ""$file->{\'name\'}: $filename: not a plain file\\n"";'), (459, '\t  next;'), (460, '\t}'), (461, ""\tif (!open(F, '<', $filename)) {""), (462, '\t  $errors->{\'data\'} .= ""$file->{\'name\'}: $filename: $!\\n"";'), (463, '\t  next;'), (464, '\t}'), (468, '\t$errors->{\'data\'} .= ""$file->{\'name\'}: fstat: $!\\n"";')], 'deleted': [(451, ""      } elsif (!open(F, '<', $filename)) {""), (452, '\t$errors->{\'data\'} .= ""$file->{\'name\'}: $filename: $!\\n"";'), (453, '\tnext;'), (457, '\t$errors->{\'data\'} .= ""$file->{\'name\'}: stat: $!\\n"";')]}"
+"fix a fencepost error in pipe_advance()
+
+The logics in pipe_advance() used to release all buffers past the new
+position failed in cases when the number of buffers to release was equal
+to pipe->buffers.  If that happened, none of them had been released,
+leaving pipe full.  Worse, it was trivial to trigger and we end up with
+pipe full of uninitialized pages.  IOW, it's an infoleak.
+
+Cc: stable@vger.kernel.org # v4.9
+Reported-by: ""Alan J. Wylie"" <alan@wylie.me.uk>
+Tested-by: ""Alan J. Wylie"" <alan@wylie.me.uk>
+Signed-off-by: Al Viro <viro@zeniv.linux.org.uk>","{'added': [(733, 'static inline void pipe_truncate(struct iov_iter *i)'), (734, '{'), (735, '\tstruct pipe_inode_info *pipe = i->pipe;'), (736, '\tif (pipe->nrbufs) {'), (737, '\t\tsize_t off = i->iov_offset;'), (738, '\t\tint idx = i->idx;'), (739, '\t\tint nrbufs = (idx - pipe->curbuf) & (pipe->buffers - 1);'), (740, '\t\tif (off) {'), (741, '\t\t\tpipe->bufs[idx].len = off - pipe->bufs[idx].offset;'), (742, '\t\t\tidx = next_idx(idx, pipe);'), (743, '\t\t\tnrbufs++;'), (744, '\t\t}'), (745, '\t\twhile (pipe->nrbufs > nrbufs) {'), (746, '\t\t\tpipe_buf_release(pipe, &pipe->bufs[idx]);'), (747, '\t\t\tidx = next_idx(idx, pipe);'), (748, '\t\t\tpipe->nrbufs--;'), (749, '\t\t}'), (750, '\t}'), (751, '}'), (752, ''), (759, '\t\tstruct pipe_buffer *buf;'), (760, '\t\tsize_t off = i->iov_offset, left = size;'), (761, '\t\tint idx = i->idx;'), (763, '\t\t\tleft += off - pipe->bufs[idx].offset;'), (766, '\t\t\tif (left <= buf->len)'), (768, '\t\t\tleft -= buf->len;'), (772, '\t\ti->iov_offset = buf->offset + left;'), (774, '\ti->count -= size;'), (775, '\t/* ... and discard everything past that point */'), (776, '\tpipe_truncate(i);'), (836, '\tWARN_ON(pipe->nrbufs == pipe->buffers);')], 'deleted': [(736, '\tstruct pipe_buffer *buf;'), (737, '\tint idx = i->idx;'), (738, '\tsize_t off = i->iov_offset, orig_sz;'), (739, ''), (742, '\torig_sz = size;'), (743, ''), (746, '\t\t\tsize += off - pipe->bufs[idx].offset;'), (749, '\t\t\tif (size <= buf->len)'), (751, '\t\t\tsize -= buf->len;'), (754, '\t\tbuf->len = size;'), (756, '\t\toff = i->iov_offset = buf->offset + size;'), (757, '\t}'), (758, '\tif (off)'), (759, '\t\tidx = next_idx(idx, pipe);'), (760, '\tif (pipe->nrbufs) {'), (761, '\t\tint unused = (pipe->curbuf + pipe->nrbufs) & (pipe->buffers - 1);'), (762, '\t\t/* [curbuf,unused) is in use.  Free [idx,unused) */'), (763, '\t\twhile (idx != unused) {'), (764, '\t\t\tpipe_buf_release(pipe, &pipe->bufs[idx]);'), (765, '\t\t\tidx = next_idx(idx, pipe);'), (766, '\t\t\tpipe->nrbufs--;'), (767, '\t\t}'), (769, '\ti->count -= orig_sz;')]}"
+Fix newline detection in zip paths.,"{'added': [(255, '  // If the path contains a newline, we cannot correctly pass it to `zip` since `zip` expects'), (256, '  // one file per line. For security reasons, we must detect and filter out these files.'), (257, '  // Hopefully this never happens legitimately?'), (258, ""  if (path.findFirst('\\n') != nullptr) {""), (259, '    KJ_LOG(ERROR, ""tried to backup file containing newlines"", path);'), (260, '    return false;'), (261, '  }'), (262, ''), (267, '    kj::ArrayPtr<const byte> pieces[2];'), (268, '    pieces[0] = path.asBytes();'), (269, '    pieces[1] = kj::StringPtr(""\\n"").asBytes();'), (270, '    out.write(pieces);'), (271, '    return true;')], 'deleted': [(259, '    // If the path contains a newline, we cannot correctly pass it to `zip` since `zip` expects'), (260, '    // one file per line. For security reasons, we must detect and filter out these files.'), (261, '    // Hopefully this never happens legitimately?'), (262, ""    if (path.findFirst('\\n') == nullptr) {""), (263, '      kj::ArrayPtr<const byte> pieces[2];'), (264, '      pieces[0] = path.asBytes();'), (265, '      pieces[1] = kj::StringPtr(""\\n"").asBytes();'), (266, '      out.write(pieces);'), (267, '      return true;'), (268, '    } else {'), (269, '      KJ_LOG(ERROR, ""tried to backup file containing newlines"", path);'), (270, '      return false;'), (271, '    }')]}"
+Improve security of zip/unzip sandbox by switching the sandboxed filesystem from blacklisting directories to whitelisting them.,"{'added': [(147, '  // Create tmpfs root to whitelist directories that we want to bind in.'), (148, '  KJ_SYSCALL(mount(""tmpfs"", ""/tmp"", ""tmpfs"", 0, ""size=8m,nr_inodes=128,mode=755""));'), (149, ''), (150, '  // Bind in whitelisted directories.'), (151, '  const char* WHITELIST[] = { ""dev"", ""bin"", ""lib"", ""lib64"", ""usr"" };'), (152, '  for (const char* dir: WHITELIST) {'), (153, '    auto src = kj::str(root, ""/"", dir);'), (154, '    auto dst = kj::str(""/tmp/"", dir);'), (155, '    if (access(src.cStr(), F_OK) == 0) {'), (156, '      KJ_SYSCALL(mkdir(dst.cStr(), 0755));'), (157, '      bind(src, dst, MS_BIND | MS_NOSUID | MS_RDONLY);'), (158, '    }'), (161, '  // Make sandboxed /tmp.'), (162, '  KJ_SYSCALL(mkdir(""/tmp/tmp"", 0777));')], 'deleted': [(147, '  // Mount root read-only.'), (148, '  bind(kj::str(root, ""/""), ""/tmp"", MS_BIND | MS_NOSUID | MS_RDONLY);'), (149, ''), (150, '  if (access(""/tmp/dev/null"", F_OK) != 0) {'), (151, '    // Looks like we need to bind in /dev.'), (152, '    KJ_SYSCALL(mount(""/dev"", ""/tmp/dev"", nullptr, MS_BIND, nullptr));'), (155, '  // Hide sensitive directories.'), (156, '  KJ_SYSCALL(mount(""tmpfs"", ""/tmp/proc"", ""tmpfs"", 0, ""size=32k,nr_inodes=8,mode=000""));'), (157, '  KJ_SYSCALL(mount(""tmpfs"", ""/tmp/var"", ""tmpfs"", 0, ""size=32k,nr_inodes=8,mode=000""));'), (158, '  KJ_SYSCALL(mount(""tmpfs"", ""/tmp/etc"", ""tmpfs"", 0, ""size=32k,nr_inodes=8,mode=000""));'), (159, ''), (160, '  // Mount inner tmpfs.'), (161, '  KJ_SYSCALL(mount(""tmpfs"", ""/tmp/tmp"", ""tmpfs"", 0, ""size=8m,nr_inodes=128,mode=777""));')]}"
+"ext4: fix data exposure after a crash
+
+Huang has reported that in his powerfail testing he is seeing stale
+block contents in some of recently allocated blocks although he mounts
+ext4 in data=ordered mode. After some investigation I have found out
+that indeed when delayed allocation is used, we don't add inode to
+transaction's list of inodes needing flushing before commit. Originally
+we were doing that but commit f3b59291a69d removed the logic with a
+flawed argument that it is not needed.
+
+The problem is that although for delayed allocated blocks we write their
+contents immediately after allocating them, there is no guarantee that
+the IO scheduler or device doesn't reorder things and thus transaction
+allocating blocks and attaching them to inode can reach stable storage
+before actual block contents. Actually whenever we attach freshly
+allocated blocks to inode using a written extent, we should add inode to
+transaction's ordered inode list to make sure we properly wait for block
+contents to be written before committing the transaction. So that is
+what we do in this patch. This also handles other cases where stale data
+exposure was possible - like filling hole via mmap in
+data=ordered,nodelalloc mode.
+
+The only exception to the above rule are extending direct IO writes where
+blkdev_direct_IO() waits for IO to complete before increasing i_size and
+thus stale data exposure is not possible. For now we don't complicate
+the code with optimizing this special case since the overhead is pretty
+low. In case this is observed to be a performance problem we can always
+handle it using a special flag to ext4_map_blocks().
+
+CC: stable@vger.kernel.org
+Fixes: f3b59291a69d0b734be1fc8be489fef2dd846d3d
+Reported-by: ""HUANG Weller (CM/ESW12-CN)"" <Weller.Huang@cn.bosch.com>
+Tested-by: ""HUANG Weller (CM/ESW12-CN)"" <Weller.Huang@cn.bosch.com>
+Signed-off-by: Jan Kara <jack@suse.cz>
+Signed-off-by: Theodore Ts'o <tytso@mit.edu>","{'added': [(687, ''), (688, '\t\t/*'), (689, '\t\t * Inodes with freshly allocated blocks where contents will be'), (690, ""\t\t * visible after transaction commit must be on transaction's""), (691, '\t\t * ordered data list.'), (692, '\t\t */'), (693, '\t\tif (map->m_flags & EXT4_MAP_NEW &&'), (694, '\t\t    !(map->m_flags & EXT4_MAP_UNWRITTEN) &&'), (695, '\t\t    !(flags & EXT4_GET_BLOCKS_ZERO) &&'), (696, '\t\t    !IS_NOQUOTA(inode) &&'), (697, '\t\t    ext4_should_order_data(inode)) {'), (698, '\t\t\tret = ext4_jbd2_file_inode(handle, inode);'), (699, '\t\t\tif (ret)'), (700, '\t\t\t\treturn ret;'), (701, '\t\t}')], 'deleted': [(1292, '\tif (ext4_test_inode_state(inode, EXT4_STATE_ORDERED_MODE)) {'), (1293, '\t\tret = ext4_jbd2_file_inode(handle, inode);'), (1294, '\t\tif (ret) {'), (1295, '\t\t\tunlock_page(page);'), (1296, '\t\t\tput_page(page);'), (1297, '\t\t\tgoto errout;'), (1298, '\t\t}'), (1299, '\t}'), (1300, '')]}"
+"bpf: don't let ldimm64 leak map addresses on unprivileged
+
+The patch fixes two things at once:
+
+1) It checks the env->allow_ptr_leaks and only prints the map address to
+   the log if we have the privileges to do so, otherwise it just dumps 0
+   as we would when kptr_restrict is enabled on %pK. Given the latter is
+   off by default and not every distro sets it, I don't want to rely on
+   this, hence the 0 by default for unprivileged.
+
+2) Printing of ldimm64 in the verifier log is currently broken in that
+   we don't print the full immediate, but only the 32 bit part of the
+   first insn part for ldimm64. Thus, fix this up as well; it's okay to
+   access, since we verified all ldimm64 earlier already (including just
+   constants) through replace_map_fd_with_map_ptr().
+
+Fixes: 1be7f75d1668 (""bpf: enable non-root eBPF programs"")
+Fixes: cbd357008604 (""bpf: verifier (add ability to receive verification log)"")
+Reported-by: Jann Horn <jannh@google.com>
+Signed-off-by: Daniel Borkmann <daniel@iogearbox.net>
+Acked-by: Alexei Starovoitov <ast@kernel.org>
+Signed-off-by: David S. Miller <davem@davemloft.net>","{'added': [(301, 'static void print_bpf_insn(const struct bpf_verifier_env *env,'), (302, '\t\t\t   const struct bpf_insn *insn)'), (366, '\t\t} else if (BPF_MODE(insn->code) == BPF_IMM &&'), (367, '\t\t\t   BPF_SIZE(insn->code) == BPF_DW) {'), (368, '\t\t\t/* At this point, we already made sure that the second'), (369, '\t\t\t * part of the ldimm64 insn is accessible.'), (370, '\t\t\t */'), (371, '\t\t\tu64 imm = ((u64)(insn + 1)->imm << 32) | (u32)insn->imm;'), (372, '\t\t\tbool map_ptr = insn->src_reg == BPF_PSEUDO_MAP_FD;'), (373, ''), (374, '\t\t\tif (map_ptr && !env->allow_ptr_leaks)'), (375, '\t\t\t\timm = 0;'), (376, ''), (377, '\t\t\tverbose(""(%02x) r%d = 0x%llx\\n"", insn->code,'), (378, '\t\t\t\tinsn->dst_reg, (unsigned long long)imm);'), (2867, '\t\t\tprint_bpf_insn(env, insn);')], 'deleted': [(301, 'static void print_bpf_insn(struct bpf_insn *insn)'), (365, '\t\t} else if (BPF_MODE(insn->code) == BPF_IMM) {'), (366, '\t\t\tverbose(""(%02x) r%d = 0x%x\\n"",'), (367, '\t\t\t\tinsn->code, insn->dst_reg, insn->imm);'), (2856, '\t\t\tprint_bpf_insn(insn);')]}"
+"drm/vmwgfx: Make sure backup_handle is always valid
+
+When vmw_gb_surface_define_ioctl() is called with an existing buffer,
+we end up returning an uninitialized variable in the backup_handle.
+
+The fix is to first initialize backup_handle to 0 just to be sure, and
+second, when a user-provided buffer is found, we will use the
+req->buffer_handle as the backup_handle.
+
+Cc: <stable@vger.kernel.org>
+Reported-by: Murray McAllister <murray.mcallister@insomniasec.com>
+Signed-off-by: Sinclair Yeh <syeh@vmware.com>
+Reviewed-by: Deepak Rawat <drawat@vmware.com>","{'added': [(1277, '\tuint32_t backup_handle = 0;'), (1320, '\t\tif (ret == 0) {'), (1321, '\t\t\tif (res->backup->base.num_pages * PAGE_SIZE <'), (1322, '\t\t\t    res->backup_size) {'), (1323, '\t\t\t\tDRM_ERROR(""Surface backup buffer is too small.\\n"");'), (1324, '\t\t\t\tvmw_dmabuf_unreference(&res->backup);'), (1325, '\t\t\t\tret = -EINVAL;'), (1326, '\t\t\t\tgoto out_unlock;'), (1327, '\t\t\t} else {'), (1328, '\t\t\t\tbackup_handle = req->buffer_handle;'), (1329, '\t\t\t}')], 'deleted': [(1277, '\tuint32_t backup_handle;'), (1320, '\t\tif (ret == 0 && res->backup->base.num_pages * PAGE_SIZE <'), (1321, '\t\t    res->backup_size) {'), (1322, '\t\t\tDRM_ERROR(""Surface backup buffer is too small.\\n"");'), (1323, '\t\t\tvmw_dmabuf_unreference(&res->backup);'), (1324, '\t\t\tret = -EINVAL;'), (1325, '\t\t\tgoto out_unlock;')]}"
+"avformat/hls: Check local file extensions
+
+This reduces the attack surface of local file-system
+information leaking.
+
+It prevents the existing exploit leading to an information leak. As
+well as similar hypothetical attacks.
+
+Leaks of information from files and symlinks ending in common multimedia extensions
+are still possible. But files with sensitive information like private keys and passwords
+generally do not use common multimedia filename extensions.
+It does not stop leaks via remote addresses in the LAN.
+
+The existing exploit depends on a specific decoder as well.
+It does appear though that the exploit should be possible with any decoder.
+The problem is that as long as sensitive information gets into the decoder,
+the output of the decoder becomes sensitive as well.
+The only obvious solution is to prevent access to sensitive information. Or to
+disable hls or possibly some of its feature. More complex solutions like
+checking the path to limit access to only subdirectories of the hls path may
+work as an alternative. But such solutions are fragile and tricky to implement
+portably and would not stop every possible attack nor would they work with all
+valid hls files.
+
+Developers have expressed their dislike / objected to disabling hls by default as well
+as disabling hls with local files. There also where objections against restricting
+remote url file extensions. This here is a less robust but also lower
+inconvenience solution.
+It can be applied stand alone or together with other solutions.
+limiting the check to local files was suggested by nevcairiel
+
+This recommits the security fix without the author name joke which was
+originally requested by Nicolas.
+
+Found-by: Emil Lerner and Pavel Cheremushkin
+Reported-by: Thierry Foucu <tfoucu@google.com>
+
+Signed-off-by: Michael Niedermayer <michael@niedermayer.cc>","{'added': [(207, '    char *allowed_extensions;'), (622, '    if (av_strstart(proto_name, ""file"", NULL)) {'), (623, '        if (strcmp(c->allowed_extensions, ""ALL"") && !av_match_ext(url, c->allowed_extensions)) {'), (624, '            av_log(s, AV_LOG_ERROR,'), (625, '                ""Filename extension of \\\'%s\\\' is not a common multimedia extension, blocked for security reasons.\\n""'), (626, '                ""If you wish to override this adjust allowed_extensions, you can set it to \\\'ALL\\\' to allow all\\n"",'), (627, '                url);'), (628, '            return AVERROR_INVALIDDATA;'), (629, '        }'), (630, '    } else if (av_strstart(proto_name, ""http"", NULL)) {'), (631, '        ;'), (632, '    } else'), (634, ''), (2149, '    {""allowed_extensions"", ""List of file extensions that hls is allowed to access"",'), (2150, '        OFFSET(allowed_extensions), AV_OPT_TYPE_STRING,'), (2151, '        {.str = ""3gp,aac,avi,flac,mkv,m3u8,m4a,m4s,m4v,mpg,mov,mp2,mp3,mp4,mpeg,mpegts,ogg,ogv,oga,ts,vob,wav""},'), (2152, '        INT_MIN, INT_MAX, FLAGS},')], 'deleted': [(621, '    if (!av_strstart(proto_name, ""http"", NULL) && !av_strstart(proto_name, ""file"", NULL))')]}"
+Change ECDSA signing to use blinding.,"{'added': [(3149, ""    /* quick sanity check to make sure we're not dealing with a 0 key */""), (3150, '    if (err == MP_OKAY) {'), (3151, '        if (mp_iszero(k) == MP_YES)'), (3152, '          err = MP_ZERO_E;'), (3153, '    }'), (3154, ''), (3927, '           mp_int b;'), (3928, ''), (3929, '           if (err == MP_OKAY) {'), (3930, '               err = mp_init(&b);'), (3931, '           }'), (3932, ''), (3935, '           if (err == MP_OKAY && key->idx == ECC_CUSTOM_IDX) {'), (3940, '           if (err == MP_OKAY) {'), (3941, '               /* Generate blinding value - non-zero value. */'), (3942, '               do {'), (3943, '                   if (++loop_check > 64) {'), (3944, '                        err = RNG_FAILURE_E;'), (3945, '                        break;'), (3946, '                   }'), (3947, ''), (3948, '                   err = wc_ecc_gen_k(rng, key->dp->size, &b, curve->order);'), (3949, '               }'), (3950, '               while (err == MP_ZERO_E);'), (3951, '               loop_check = 0;'), (3952, '           }'), (3953, ''), (3960, '                                                                   key->dp->id);'), (3976, '                   /* find s = (e + xr)/k'), (3977, '                             = b.(e/k.b + x.r/k.b) */'), (3978, ''), (3979, '                   /* k = k.b */'), (3980, '                   err = mp_mulmod(&pubkey.k, &b, curve->order, &pubkey.k);'), (3981, '                   if (err != MP_OKAY) break;'), (3982, ''), (3983, '                   /* k = 1/k.b */'), (3987, '                   /* s = x.r */'), (3991, '                   /* s = x.r/k.b */'), (3992, '                   err = mp_mulmod(&pubkey.k, s, curve->order, s);'), (3993, '                   if (err != MP_OKAY) break;'), (3994, ''), (3995, '                   /* e = e/k.b */'), (3996, '                   err = mp_mulmod(&pubkey.k, e, curve->order, e);'), (3997, '                   if (err != MP_OKAY) break;'), (3998, ''), (3999, '                   /* s = e/k.b + x.r/k.b'), (4000, '                        = (e + x.r)/k.b */'), (4004, '                   /* s = b.(e + x.r)/k.b'), (4005, '                        = (e + x.r)/k */'), (4006, '                   err = mp_mulmod(s, &b, curve->order, s);'), (4010, '                   err = mp_mod(s, curve->order, s);'), (4011, '                   if (err != MP_OKAY) break;'), (4018, '           mp_clear(&b);'), (4019, '           mp_free(&b);')], 'deleted': [(3142, ""    /* quick sanity check to make sure we're not dealing with a 0 key */""), (3143, '    if (err == MP_OKAY) {'), (3144, '        if (mp_iszero(k) == MP_YES)'), (3145, '          err = MP_ZERO_E;'), (3146, '    }'), (3147, ''), (3929, '           if (key->idx == ECC_CUSTOM_IDX) {'), (3940, '                                                              key->dp->id);'), (3956, '                   /* find s = (e + xr)/k */'), (3960, '                   /* s = xr */'), (3964, '                   /* s = e +  xr */'), (3968, '                   /* s = e +  xr */'), (3969, '                   err = mp_mod(s, curve->order, s);'), (3973, '                   err = mp_mulmod(s, &pubkey.k, curve->order, s);')]}"
+Check length of memcmp,"{'added': [(11614, '\t\t\t\t\tif ((len > 12) && !memcmp(buf + 5, ""include"", 7)) {'), (11617, '\t\t\t\t\t} else if ((len > 9) && !memcmp(buf + 5, ""exec"", 4)) {')], 'deleted': [(11614, '\t\t\t\t\tif (!memcmp(buf + 5, ""include"", 7)) {'), (11617, '\t\t\t\t\t} else if (!memcmp(buf + 5, ""exec"", 4)) {')]}"
+Avoid listening on all interfaces by default,"{'added': [(66, '    std::string hostname = node.hostname.empty() ? ""*"" : node.hostname;'), (67, '    std::string addr = local ? ""ipc:///tmp/"" : ""tcp://"" + hostname + "":"";')], 'deleted': [(66, '    std::string addr = local ? ""ipc:///tmp/"" : ""tcp://*:"";')]}"
+"x86/paravirt: Fix spectre-v2 mitigations for paravirt guests
+
+Nadav reported that on guests we're failing to rewrite the indirect
+calls to CALLEE_SAVE paravirt functions. In particular the
+pv_queued_spin_unlock() call is left unpatched and that is all over the
+place. This obviously wrecks Spectre-v2 mitigation (for paravirt
+guests) which relies on not actually having indirect calls around.
+
+The reason is an incorrect clobber test in paravirt_patch_call(); this
+function rewrites an indirect call with a direct call to the _SAME_
+function, there is no possible way the clobbers can be different
+because of this.
+
+Therefore remove this clobber check. Also put WARNs on the other patch
+failure case (not enough room for the instruction) which I've not seen
+trigger in my (limited) testing.
+
+Three live kernel image disassemblies for lock_sock_nested (as a small
+function that illustrates the problem nicely). PRE is the current
+situation for guests, POST is with this patch applied and NATIVE is with
+or without the patch for !guests.
+
+PRE:
+
+(gdb) disassemble lock_sock_nested
+Dump of assembler code for function lock_sock_nested:
+   0xffffffff817be970 <+0>:     push   %rbp
+   0xffffffff817be971 <+1>:     mov    %rdi,%rbp
+   0xffffffff817be974 <+4>:     push   %rbx
+   0xffffffff817be975 <+5>:     lea    0x88(%rbp),%rbx
+   0xffffffff817be97c <+12>:    callq  0xffffffff819f7160 <_cond_resched>
+   0xffffffff817be981 <+17>:    mov    %rbx,%rdi
+   0xffffffff817be984 <+20>:    callq  0xffffffff819fbb00 <_raw_spin_lock_bh>
+   0xffffffff817be989 <+25>:    mov    0x8c(%rbp),%eax
+   0xffffffff817be98f <+31>:    test   %eax,%eax
+   0xffffffff817be991 <+33>:    jne    0xffffffff817be9ba <lock_sock_nested+74>
+   0xffffffff817be993 <+35>:    movl   $0x1,0x8c(%rbp)
+   0xffffffff817be99d <+45>:    mov    %rbx,%rdi
+   0xffffffff817be9a0 <+48>:    callq  *0xffffffff822299e8
+   0xffffffff817be9a7 <+55>:    pop    %rbx
+   0xffffffff817be9a8 <+56>:    pop    %rbp
+   0xffffffff817be9a9 <+57>:    mov    $0x200,%esi
+   0xffffffff817be9ae <+62>:    mov    $0xffffffff817be993,%rdi
+   0xffffffff817be9b5 <+69>:    jmpq   0xffffffff81063ae0 <__local_bh_enable_ip>
+   0xffffffff817be9ba <+74>:    mov    %rbp,%rdi
+   0xffffffff817be9bd <+77>:    callq  0xffffffff817be8c0 <__lock_sock>
+   0xffffffff817be9c2 <+82>:    jmp    0xffffffff817be993 <lock_sock_nested+35>
+End of assembler dump.
+
+POST:
+
+(gdb) disassemble lock_sock_nested
+Dump of assembler code for function lock_sock_nested:
+   0xffffffff817be970 <+0>:     push   %rbp
+   0xffffffff817be971 <+1>:     mov    %rdi,%rbp
+   0xffffffff817be974 <+4>:     push   %rbx
+   0xffffffff817be975 <+5>:     lea    0x88(%rbp),%rbx
+   0xffffffff817be97c <+12>:    callq  0xffffffff819f7160 <_cond_resched>
+   0xffffffff817be981 <+17>:    mov    %rbx,%rdi
+   0xffffffff817be984 <+20>:    callq  0xffffffff819fbb00 <_raw_spin_lock_bh>
+   0xffffffff817be989 <+25>:    mov    0x8c(%rbp),%eax
+   0xffffffff817be98f <+31>:    test   %eax,%eax
+   0xffffffff817be991 <+33>:    jne    0xffffffff817be9ba <lock_sock_nested+74>
+   0xffffffff817be993 <+35>:    movl   $0x1,0x8c(%rbp)
+   0xffffffff817be99d <+45>:    mov    %rbx,%rdi
+   0xffffffff817be9a0 <+48>:    callq  0xffffffff810a0c20 <__raw_callee_save___pv_queued_spin_unlock>
+   0xffffffff817be9a5 <+53>:    xchg   %ax,%ax
+   0xffffffff817be9a7 <+55>:    pop    %rbx
+   0xffffffff817be9a8 <+56>:    pop    %rbp
+   0xffffffff817be9a9 <+57>:    mov    $0x200,%esi
+   0xffffffff817be9ae <+62>:    mov    $0xffffffff817be993,%rdi
+   0xffffffff817be9b5 <+69>:    jmpq   0xffffffff81063aa0 <__local_bh_enable_ip>
+   0xffffffff817be9ba <+74>:    mov    %rbp,%rdi
+   0xffffffff817be9bd <+77>:    callq  0xffffffff817be8c0 <__lock_sock>
+   0xffffffff817be9c2 <+82>:    jmp    0xffffffff817be993 <lock_sock_nested+35>
+End of assembler dump.
+
+NATIVE:
+
+(gdb) disassemble lock_sock_nested
+Dump of assembler code for function lock_sock_nested:
+   0xffffffff817be970 <+0>:     push   %rbp
+   0xffffffff817be971 <+1>:     mov    %rdi,%rbp
+   0xffffffff817be974 <+4>:     push   %rbx
+   0xffffffff817be975 <+5>:     lea    0x88(%rbp),%rbx
+   0xffffffff817be97c <+12>:    callq  0xffffffff819f7160 <_cond_resched>
+   0xffffffff817be981 <+17>:    mov    %rbx,%rdi
+   0xffffffff817be984 <+20>:    callq  0xffffffff819fbb00 <_raw_spin_lock_bh>
+   0xffffffff817be989 <+25>:    mov    0x8c(%rbp),%eax
+   0xffffffff817be98f <+31>:    test   %eax,%eax
+   0xffffffff817be991 <+33>:    jne    0xffffffff817be9ba <lock_sock_nested+74>
+   0xffffffff817be993 <+35>:    movl   $0x1,0x8c(%rbp)
+   0xffffffff817be99d <+45>:    mov    %rbx,%rdi
+   0xffffffff817be9a0 <+48>:    movb   $0x0,(%rdi)
+   0xffffffff817be9a3 <+51>:    nopl   0x0(%rax)
+   0xffffffff817be9a7 <+55>:    pop    %rbx
+   0xffffffff817be9a8 <+56>:    pop    %rbp
+   0xffffffff817be9a9 <+57>:    mov    $0x200,%esi
+   0xffffffff817be9ae <+62>:    mov    $0xffffffff817be993,%rdi
+   0xffffffff817be9b5 <+69>:    jmpq   0xffffffff81063ae0 <__local_bh_enable_ip>
+   0xffffffff817be9ba <+74>:    mov    %rbp,%rdi
+   0xffffffff817be9bd <+77>:    callq  0xffffffff817be8c0 <__lock_sock>
+   0xffffffff817be9c2 <+82>:    jmp    0xffffffff817be993 <lock_sock_nested+35>
+End of assembler dump.
+
+
+Fixes: 63f70270ccd9 (""[PATCH] i386: PARAVIRT: add common patching machinery"")
+Fixes: 3010a0663fd9 (""x86/paravirt, objtool: Annotate indirect calls"")
+Reported-by: Nadav Amit <namit@vmware.com>
+Signed-off-by: Peter Zijlstra (Intel) <peterz@infradead.org>
+Signed-off-by: Thomas Gleixner <tglx@linutronix.de>
+Reviewed-by: Juergen Gross <jgross@suse.com>
+Cc: Konrad Rzeszutek Wilk <konrad.wilk@oracle.com>
+Cc: Boris Ostrovsky <boris.ostrovsky@oracle.com>
+Cc: David Woodhouse <dwmw2@infradead.org>
+Cc: stable@vger.kernel.org","{'added': [(91, '\tif (len < 5) {'), (92, '#ifdef CONFIG_RETPOLINE'), (93, '\t\tWARN_ONCE(""Failing to patch indirect CALL in %ps\\n"", (void *)addr);'), (94, '#endif'), (96, '\t}'), (111, '\tif (len < 5) {'), (112, '#ifdef CONFIG_RETPOLINE'), (113, '\t\tWARN_ONCE(""Failing to patch indirect JMP in %ps\\n"", (void *)addr);'), (114, '#endif'), (116, '\t}')], 'deleted': [(91, '\tif (tgt_clobbers & ~site_clobbers)'), (92, '\t\treturn len;\t/* target would clobber too much for this site */'), (93, '\tif (len < 5)'), (109, '\tif (len < 5)')]}"
+XBM coder leaves the hex image data uninitialized if hex value of the pixel is negative,"{'added': [(354, '        {'), (355, '          data=(unsigned char *) RelinquishMagickMemory(data);'), (356, '          ThrowReaderException(CorruptImageError,""ImproperImageHeader"");'), (357, '        }'), (367, '        {'), (368, '          data=(unsigned char *) RelinquishMagickMemory(data);'), (369, '          ThrowReaderException(CorruptImageError,""ImproperImageHeader"");'), (370, '        }')], 'deleted': [(354, '        break;'), (364, '        break;')]}"
+"cdrom: Fix info leak/OOB read in cdrom_ioctl_drive_status
+
+Like d88b6d04: ""cdrom: information leak in cdrom_ioctl_media_changed()""
+
+There is another cast from unsigned long to int which causes
+a bounds check to fail with specially crafted input. The value is
+then used as an index in the slot array in cdrom_slot_status().
+
+Signed-off-by: Scott Bauer <scott.bauer@intel.com>
+Signed-off-by: Scott Bauer <sbauer@plzdonthack.me>
+Cc: stable@vger.kernel.org
+Signed-off-by: Jens Axboe <axboe@kernel.dk>","{'added': [(2549, '\tif (arg >= cdi->capacity)')], 'deleted': [(2549, '\tif (((int)arg >= cdi->capacity))')]}"
+"cdrom: fix improper type cast, which can leat to information leak.
+
+There is another cast from unsigned long to int which causes
+a bounds check to fail with specially crafted input. The value is
+then used as an index in the slot array in cdrom_slot_status().
+
+This issue is similar to CVE-2018-16658 and CVE-2018-10940.
+
+Signed-off-by: Young_X <YangX92@hotmail.com>
+Signed-off-by: Jens Axboe <axboe@kernel.dk>","{'added': [(2448, '\t\tif (arg >= cdi->capacity)')], 'deleted': [(2448, '\t\tif ((int)arg >= cdi->capacity)')]}"
+"Fix compile warning introduced in commit c6247a9
+
+Commit c6247a9 - ""Add command line and configuration option to set umask""
+introduced a compile warning, although the code would have worked OK.
+
+Signed-off-by: Quentin Armitage <quentin@armitage.org.uk>","{'added': [(885, '\t\treturn 0;')], 'deleted': [(885, '\t\treturn;')]}"
+"crypto: user - fix leaking uninitialized memory to userspace
+
+All bytes of the NETLINK_CRYPTO report structures must be initialized,
+since they are copied to userspace.  The change from strncpy() to
+strlcpy() broke this.  As a minimal fix, change it back.
+
+Fixes: 4473710df1f8 (""crypto: user - Prepare for CRYPTO_MAX_ALG_NAME expansion"")
+Cc: <stable@vger.kernel.org> # v4.12+
+Signed-off-by: Eric Biggers <ebiggers@google.com>
+Signed-off-by: Herbert Xu <herbert@gondor.apana.org.au>","{'added': [(87, '\tstrncpy(rcipher.type, ""cipher"", sizeof(rcipher.type));'), (106, '\tstrncpy(rcomp.type, ""compression"", sizeof(rcomp.type));'), (120, '\tstrncpy(racomp.type, ""acomp"", sizeof(racomp.type));'), (135, '\tstrncpy(rakcipher.type, ""akcipher"", sizeof(rakcipher.type));'), (150, '\tstrncpy(rkpp.type, ""kpp"", sizeof(rkpp.type));'), (164, '\tstrncpy(ualg->cru_name, alg->cra_name, sizeof(ualg->cru_name));'), (165, '\tstrncpy(ualg->cru_driver_name, alg->cra_driver_name,'), (167, '\tstrncpy(ualg->cru_module_name, module_name(alg->cra_module),'), (180, '\t\tstrncpy(rl.type, ""larval"", sizeof(rl.type));')], 'deleted': [(87, '\tstrlcpy(rcipher.type, ""cipher"", sizeof(rcipher.type));'), (106, '\tstrlcpy(rcomp.type, ""compression"", sizeof(rcomp.type));'), (120, '\tstrlcpy(racomp.type, ""acomp"", sizeof(racomp.type));'), (135, '\tstrlcpy(rakcipher.type, ""akcipher"", sizeof(rakcipher.type));'), (150, '\tstrlcpy(rkpp.type, ""kpp"", sizeof(rkpp.type));'), (164, '\tstrlcpy(ualg->cru_name, alg->cra_name, sizeof(ualg->cru_name));'), (165, '\tstrlcpy(ualg->cru_driver_name, alg->cra_driver_name,'), (167, '\tstrlcpy(ualg->cru_module_name, module_name(alg->cra_module),'), (180, '\t\tstrlcpy(rl.type, ""larval"", sizeof(rl.type));')]}"
+"net/appletalk: fix minor pointer leak to userspace in SIOCFINDIPDDPRT
+
+Fields ->dev and ->next of struct ipddp_route may be copied to
+userspace on the SIOCFINDIPDDPRT ioctl. This is only accessible
+to CAP_NET_ADMIN though. Let's manually copy the relevant fields
+instead of using memcpy().
+
+BugLink: http://blog.infosectcbr.com.au/2018/09/linux-kernel-infoleaks.html
+Cc: Jann Horn <jannh@google.com>
+Signed-off-by: Willy Tarreau <w@1wt.eu>
+Signed-off-by: David S. Miller <davem@davemloft.net>","{'added': [(286, '\t\t\tif (rp) {'), (287, '\t\t\t\tmemset(&rcp2, 0, sizeof(rcp2));'), (288, '\t\t\t\trcp2.ip    = rp->ip;'), (289, '\t\t\t\trcp2.at    = rp->at;'), (290, '\t\t\t\trcp2.flags = rp->flags;'), (291, '\t\t\t}')], 'deleted': [(286, '\t\t\tif (rp)'), (287, '\t\t\t\tmemcpy(&rcp2, rp, sizeof(rcp2));')]}"
+"fbdev: Fixing arbitrary kernel leak in case FBIOGETCMAP_SPARC in sbusfb_ioctl_helper().
+
+Fixing arbitrary kernel leak in case FBIOGETCMAP_SPARC in
+sbusfb_ioctl_helper().
+
+'index' is defined as an int in sbusfb_ioctl_helper().
+We retrieve this from the user:
+if (get_user(index, &c->index) ||
+    __get_user(count, &c->count) ||
+    __get_user(ured, &c->red) ||
+    __get_user(ugreen, &c->green) ||
+    __get_user(ublue, &c->blue))
+       return -EFAULT;
+
+and then we use 'index' in the following way:
+red = cmap->red[index + i] >> 8;
+green = cmap->green[index + i] >> 8;
+blue = cmap->blue[index + i] >> 8;
+
+This is a classic information leak vulnerability. 'index' should be
+an unsigned int, given its usage above.
+
+This patch is straight-forward; it changes 'index' to unsigned int
+in two switch-cases: FBIOGETCMAP_SPARC && FBIOPUTCMAP_SPARC.
+
+This patch fixes CVE-2018-6412.
+
+Signed-off-by: Peter Malone <peter.malone@gmail.com>
+Acked-by: Mathieu Malaterre <malat@debian.org>
+Signed-off-by: Bartlomiej Zolnierkiewicz <b.zolnierkie@samsung.com>","{'added': [(125, '\t\tunsigned int index, count, i;'), (164, '\t\tunsigned int index, count, i;')], 'deleted': [(125, '\t\tint index, count, i;'), (164, '\t\tint index, count, i;')]}"
+"Fix PHP error - wrong argument type
+
+Initialize $t_filter variable as array() instead of '' in
+current_user_get_bug_filter(), to ensure its type is correct when
+calling filter_ensure_valid_filter().
+
+Fixes #23921","{'added': [(241, '\t$t_filter = array();')], 'deleted': [(241, ""\t$t_filter = '';"")]}"
+"Security: prevent timing attack on WEBHOOK_AUTHORIZATION secret
+
+Anymail's webhook validation was vulnerable to a timing attack.
+An attacker could have used this to recover your WEBHOOK_AUTHORIZATION
+shared secret, potentially allowing them to post fabricated or malicious
+email tracking events to your app.
+
+There have not been any reports of attempted exploit in the wild. (The
+vulnerability was discovered through code review.) Attempts would be
+visible in http logs as a very large number of 400 responses on
+Anymail's webhook urls, or in Python error monitoring as a very large
+number of AnymailWebhookValidationFailure exceptions.
+
+If you are using Anymail's webhooks, you should upgrade to this release.
+In addition, you may want to rotate to a new WEBHOOK_AUTHORIZATION
+secret ([docs](http://anymail.readthedocs.io/en/stable/tips/securing_webhooks/#use-a-shared-authorization-secret)),
+particularly if your logs indicate attempted exploit.","{'added': [(5, 'from django.utils.crypto import constant_time_compare'), (44, '            request_auth = get_request_basic_auth(request)'), (45, ""            # Use constant_time_compare to avoid timing attack on basic auth. (It's OK that any()""), (46, ""            # can terminate early: we're not trying to protect how many auth strings are allowed,""), (47, '            # just the contents of each individual auth string.)'), (48, '            auth_ok = any(constant_time_compare(request_auth, allowed_auth)'), (49, '                          for allowed_auth in self.basic_auth)'), (50, '            if not auth_ok:'), (86, ''), (87, '        Security note: use django.utils.crypto.constant_time_compare for string'), (88, '        comparisons, to avoid exposing your validation to a timing attack.'), (90, ""        # if not constant_time_compare(request.POST['signature'], expected_signature):"")], 'deleted': [(43, '            basic_auth = get_request_basic_auth(request)'), (44, '            if basic_auth is None or basic_auth not in self.basic_auth:'), (81, ""        # if request.POST['signature'] != expected_signature:"")]}"
+"Security: prevent timing attack on WEBHOOK_AUTHORIZATION secret
+
+Anymail's webhook validation was vulnerable to a timing attack.
+An attacker could have used this to recover your WEBHOOK_AUTHORIZATION
+shared secret, potentially allowing them to post fabricated or malicious
+email tracking events to your app.
+
+There have not been any reports of attempted exploit in the wild. (The
+vulnerability was discovered through code review.) Attempts would be
+visible in http logs as a very large number of 400 responses on
+Anymail's webhook urls, or in Python error monitoring as a very large
+number of AnymailWebhookValidationFailure exceptions.
+
+If you are using Anymail's webhooks, you should upgrade to this release.
+In addition, you may want to rotate to a new WEBHOOK_AUTHORIZATION
+secret ([docs](http://anymail.readthedocs.io/en/stable/tips/securing_webhooks/#use-a-shared-authorization-secret)),
+particularly if your logs indicate attempted exploit.
+
+(cherry picked from commit db586ede1fbb41dce21310ea28ae15a1cf1286c5)","{'added': [(6, 'from django.utils.crypto import constant_time_compare'), (45, '            request_auth = get_request_basic_auth(request)'), (46, ""            # Use constant_time_compare to avoid timing attack on basic auth. (It's OK that any()""), (47, ""            # can terminate early: we're not trying to protect how many auth strings are allowed,""), (48, '            # just the contents of each individual auth string.)'), (49, '            auth_ok = any(constant_time_compare(request_auth, allowed_auth)'), (50, '                          for allowed_auth in self.basic_auth)'), (51, '            if not auth_ok:'), (87, ''), (88, '        Security note: use django.utils.crypto.constant_time_compare for string'), (89, '        comparisons, to avoid exposing your validation to a timing attack.'), (91, ""        # if not constant_time_compare(request.POST['signature'], expected_signature):"")], 'deleted': [(44, '            basic_auth = get_request_basic_auth(request)'), (45, '            if basic_auth is None or basic_auth not in self.basic_auth:'), (82, ""        # if request.POST['signature'] != expected_signature:"")]}"
+[Security] Add a separator in the remember me cookie hash,"{'added': [(123, ""        return hash_hmac('sha256', $class.self::COOKIE_DELIMITER.$username.self::COOKIE_DELIMITER.$expires.self::COOKIE_DELIMITER.$password, $this->getSecret());"")], 'deleted': [(123, ""        return hash_hmac('sha256', $class.$username.$expires.$password, $this->getSecret());"")]}"
+"EAP-pwd: fix side-channel leak where 1 in 2018 handshakes fail
+
+Previously the Hunting and Pecking algorithm of EAP-pwd aborted when
+more than 10 iterations are needed. Every iteration has a 50% chance
+of finding the password element. This means one in every 2048 handshakes
+will fail, in which case an error frame is sent to the client. This
+event leaks information that can be abused in an offline password
+brute-force attack. More precisely, the adversary learns that all 10
+iterations failed for the given random EAP-pwd token. Using the same
+techniques as in the Dragonblood attack, this can be used to brute-force
+the password.
+
+This patch fixes the above issue by executing enough iterations such that
+the password element is always found eventually.
+
+Note that timing and cache leaks remain a risk against the current
+implementation of EAP-pwd.","{'added': [(195, '\t\tif (ctr > 100) {')], 'deleted': [(195, '\t\tif (ctr > 10) {')]}"
+"net/rds: Fix info leak in rds6_inc_info_copy()
+
+The rds6_inc_info_copy() function has a couple struct members which
+are leaking stack information.  The ->tos field should hold actual
+information and the ->flags field needs to be zeroed out.
+
+Fixes: 3eb450367d08 (""rds: add type of service(tos) infrastructure"")
+Fixes: b7ff8b1036f0 (""rds: Extend RDS API for IPv6 support"")
+Reported-by: 黄ID蝴蝶 <butterflyhuangxx@gmail.com>
+Signed-off-by: Dan Carpenter <dan.carpenter@oracle.com>
+Signed-off-by: Ka-Cheong Poon <ka-cheong.poon@oracle.com>
+Acked-by: Santosh Shilimkar <santosh.shilimkar@oracle.com>
+Signed-off-by: David S. Miller <davem@davemloft.net>","{'added': [(2, ' * Copyright (c) 2006, 2019 Oracle and/or its affiliates. All rights reserved.'), (814, '\tminfo6.tos = inc->i_conn->c_tos;'), (828, '\tminfo6.flags = 0;'), (829, '')], 'deleted': [(2, ' * Copyright (c) 2006, 2018 Oracle and/or its affiliates. All rights reserved.')]}"
+"[php:core:security] fix information leakage vulnerability
+
+elFinder <= 2.1.44 PHP connector has high severity security
+vulnerability to  information leakage. This vulnerability is affected on
+environments in which the curl extension of PHP is enabled and safe_mode
+or open_basedir is not set.
+
+To fix this vulnerability with this commit.
+
+We would like to express our special thanks to Ravindra Rajaram
+(ravindra.rajaram@broadcom.com) and Hamsalekha Madiraju
+(hamsalekha.madiraju@broadcom.com) who reported this vulnerability.","{'added': [(2398, ""        if (preg_match('~^(?:ht|f)tps?://[-_.!\\~*\\'()a-z0-9;/?:\\@&=+\\$,%#\\*]+~i', $url)) {""), (2399, ""            $method = (function_exists('curl_exec') && !ini_get('safe_mode') && !ini_get('open_basedir')) ? 'curl_get_contents' : 'fsock_get_contents';""), (2400, '            return $this->$method($url, $timeout, $redirect_max, $ua, $fp);'), (2401, '        }'), (2402, '        return false;'), (3043, ""                        if ($data = $this->get_remote_contents($url, 30, 5, 'Mozilla/5.0', $fp)) {""), (3044, '                            // to check connection is aborted'), (3045, '                            elFinder::checkAborted();'), (3046, ""                            $_name = preg_replace('~^.*?([^/#?]+)(?:\\?.*)?(?:#.*)?$~', '$1', rawurldecode($url));""), (3047, '                            // Check `Content-Disposition` response header'), (3048, ""                            if ($data && ($headers = get_headers($url, true)) && !empty($headers['Content-Disposition'])) {""), (3049, '                                if (preg_match(\'/filename\\*=(?:([a-zA-Z0-9_-]+?)\\\'\\\')""?([a-z0-9_.~%-]+)""?/i\', $headers[\'Content-Disposition\'], $m)) {'), (3050, '                                    $_name = rawurldecode($m[2]);'), (3051, ""                                    if ($m[1] && strtoupper($m[1]) !== 'UTF-8' && function_exists('mb_convert_encoding')) {""), (3052, ""                                        $_name = mb_convert_encoding($_name, 'UTF-8', $m[1]);""), (3053, '                                    }'), (3054, '                                } else if (preg_match(\'/filename=""?([ a-z0-9_.~%-]+)""?/i\', $headers[\'Content-Disposition\'], $m)) {'), (3055, '                                    $_name = rawurldecode($m[1]);')], 'deleted': [(2398, ""        $method = (function_exists('curl_exec') && !ini_get('safe_mode') && !ini_get('open_basedir')) ? 'curl_get_contents' : 'fsock_get_contents';""), (2399, '        return $this->$method($url, $timeout, $redirect_max, $ua, $fp);'), (3040, ""                        $data = $this->get_remote_contents($url, 30, 5, 'Mozilla/5.0', $fp);""), (3041, '                        // to check connection is aborted'), (3042, '                        elFinder::checkAborted();'), (3043, ""                        $_name = preg_replace('~^.*?([^/#?]+)(?:\\?.*)?(?:#.*)?$~', '$1', rawurldecode($url));""), (3044, '                        // Check `Content-Disposition` response header'), (3045, ""                        if ($data && ($headers = get_headers($url, true)) && !empty($headers['Content-Disposition'])) {""), (3046, '                            if (preg_match(\'/filename\\*=(?:([a-zA-Z0-9_-]+?)\\\'\\\')""?([a-z0-9_.~%-]+)""?/i\', $headers[\'Content-Disposition\'], $m)) {'), (3047, '                                $_name = rawurldecode($m[2]);'), (3048, ""                                if ($m[1] && strtoupper($m[1]) !== 'UTF-8' && function_exists('mb_convert_encoding')) {""), (3049, ""                                    $_name = mb_convert_encoding($_name, 'UTF-8', $m[1]);""), (3051, '                            } else if (preg_match(\'/filename=""?([ a-z0-9_.~%-]+)""?/i\', $headers[\'Content-Disposition\'], $m)) {'), (3052, '                                $_name = rawurldecode($m[1]);')]}"
+"fix: [vulnerability] Fixes a vulnerability where a user can view sightings that they should not be eligible for
+
+- requires access to the event that has received the sighting
+- affects instances with restrictive sighting settings (event only / sighting reported only)
+
+- as reported by Tyler McLellan of CanCyber.org","{'added': [(344, ""        if (!empty($sightings) && empty(Configure::read('Plugin.Sightings_policy')) && !$this->_isSiteAdmin()) {""), (345, '            $eventOwnerOrgIdList = array();'), (346, '            foreach ($sightings as $k => $sighting) {'), (347, ""                if (empty($eventOwnerOrgIdList[$sighting['Sighting']['event_id']])) {""), (348, ""                    $temp_event = $this->Event->find('first', array(""), (349, ""                        'recursive' => -1,""), (350, ""                        'conditions' => array('Event.id' => $sighting['Sighting']['event_id']),""), (351, ""                        'fields' => array('Event.id', 'Event.orgc_id')""), (352, '                    ));'), (353, ""                    $eventOwnerOrgIdList[$temp_event['Event']['id']] = $temp_event['Event']['orgc_id'];""), (354, '                }'), (355, ""                if (empty($eventOwnerOrgIdList[$sighting['Sighting']['event_id']]) || $eventOwnerOrgIdList[$sighting['Sighting']['event_id']] !== $this->Auth->user('org_id')) {""), (356, '                    unset($sightings[$k]);'), (357, '                }'), (358, '            }'), (359, '            $sightings = array_values($sightings);'), (360, ""        } else if (!empty($sightings) && Configure::read('Plugin.Sightings_policy') == 1 && !$this->_isSiteAdmin()) {""), (361, '            $eventsWithOwnSightings = array();'), (362, '            foreach ($sightings as $k => $sighting) {'), (363, ""                if (empty($eventsWithOwnSightings[$sighting['Sighting']['event_id']])) {""), (364, ""                    $eventsWithOwnSightings[$sighting['Sighting']['event_id']] = false;""), (365, ""                    $sighting_temp = $this->Sighting->find('first', array(""), (366, ""                        'recursive' => -1,""), (367, ""                        'conditions' => array(""), (368, ""                            'Sighting.event_id' => $sighting['Sighting']['event_id'],""), (369, ""                            'Sighting.org_id' => $this->Auth->user('org_id')""), (370, '                        )'), (371, '                    ));'), (372, '                    if (empty($sighting_temp)) {'), (373, ""                        $temp_event = $this->Event->find('first', array(""), (374, ""                            'recursive' => -1,""), (375, ""                            'conditions' => array(""), (376, ""                                'Event.id' => $sighting['Sighting']['event_id'],""), (377, ""                                'Event.orgc_id' => $this->Auth->user('org_id')""), (378, '                            ),'), (379, ""                            'fields' => array('Event.id', 'Event.orgc_id')""), (380, '                        ));'), (381, ""                        $eventsWithOwnSightings[$sighting['Sighting']['event_id']] = !empty($temp_event);""), (382, '                    } else {'), (383, ""                        $eventsWithOwnSightings[$sighting['Sighting']['event_id']] = true;""), (384, '                    }'), (385, '                }'), (386, ""                if (!$eventsWithOwnSightings[$sighting['Sighting']['event_id']]) {""), (387, '                    unset($sightings[$k]);'), (388, '                }'), (389, '            }'), (390, '            $sightings = array_values($sightings);'), (391, '        }'), (397, '            if (!empty($sightings)) {'), (398, '                foreach ($sightings as $k => $v) {'), (399, ""                    if ($v['Sighting']['org_id'] != $this->Auth->user('org_id')) {""), (400, ""                        $sightings[$k]['Organisation']['name'] = '';""), (401, ""                        $sightings[$k]['Sighting']['org_id'] = 0;""), (402, '                    }'), (409, ""        $this->set('sightings', empty($sightings) ? array() : $sightings);"")], 'deleted': [(349, '            foreach ($sightings as $k => $v) {'), (350, ""                if ($v['Sighting']['org_id'] != $this->Auth->user('org_id')) {""), (351, ""                    $sightings[$k]['Organisation']['name'] = '';""), (352, ""                    $sightings[$k]['Sighting']['org_id'] = 0;""), (359, ""        $this->set('sightings', $sightings);"")]}"
+Preventing manipulation with $_SERVER['HTTP_HOST'],"{'added': [(33, ""        $mailtext .= __('PASSWORD_RESET_REQUEST',$hostname,$user,$rkey,$hostname,$user,$rkey);"")], 'deleted': [(33, ""        $mailtext .= __('PASSWORD_RESET_REQUEST',$_SERVER['HTTP_HOST'],$user,$rkey,$_SERVER['HTTP_HOST'],$user,$rkey);"")]}"
+"slcan: Don't transmit uninitialized stack data in padding
+
+struct can_frame contains some padding which is not explicitly zeroed in
+slc_bump. This uninitialized data will then be transmitted if the stack
+initialization hardening feature is not enabled (CONFIG_INIT_STACK_ALL).
+
+This commit just zeroes the whole struct including the padding.
+
+Signed-off-by: Richard Palethorpe <rpalethorpe@suse.com>
+Fixes: a1044e36e457 (""can: add slcan driver for serial/USB-serial CAN adapters"")
+Reviewed-by: Kees Cook <keescook@chromium.org>
+Cc: linux-can@vger.kernel.org
+Cc: netdev@vger.kernel.org
+Cc: security@kernel.org
+Cc: wg@grandegger.com
+Cc: mkl@pengutronix.de
+Cc: davem@davemloft.net
+Acked-by: Marc Kleine-Budde <mkl@pengutronix.de>
+Signed-off-by: David S. Miller <davem@davemloft.net>","{'added': [(151, '\tmemset(&cf, 0, sizeof(cf));')], 'deleted': [(151, '\tcf.can_id = 0;'), (190, '\t*(u64 *) (&cf.data) = 0; /* clear payload */'), (191, '')]}"
+update,"{'added': [], 'deleted': [(3, 'dd(User::all());')]}"
+Update en-risks-and-mitigations-faq.md,"{'added': [(567, '7.  Google Play’s policies forbid the malicious use of BLE scanning, and'), (568, '    Play’s rigorous review processes are designed to detect it. Any app'), (569, '    found to be explicitly capturing BLE RPIs will be removed.'), (570, ''), (670, 'For the sake of transparency, we note that this issue was confirmed on a'), (671, 'subset of Android devices globally.  These issues likely resulted from'), (672, 'how certain OEMs have implemented Bluetooth since, for the reasons noted'), (673, 'above, the [Android Compatibility Definition Document](https://source.android.com/compatibility/10/android-10-cdd#7_4_3_bluetooth) (CDD) does not'), (674, 'require rotation in sync.  After extensive testing, a change to EN has'), (675, 'nevertheless been rolled out that removes this opportunity for'), (676, 'device-specific misbehavior with respect to EN for all devices. The RPI'), (677, 'is now set to a globally fixed value for a small number of BLE frames'), (678, 'surrounding the RPI rollover.'), (679, ''), (680, 'As noted above, Google Play’s policies forbid the malicious use of BLE'), (681, 'scanning, and Play’s rigorous review processes are designed to detect'), (682, 'it. Any app found to be explicitly capturing BLE RPIs will be removed.'), (683, '')], 'deleted': [(567, ""7.  Any app capturing BLE RPIs that is detected in Google Play's rigorous""), (568, '    review process would be removed from the Play Store.'), (569, '')]}"
+Update en-risks-and-mitigations-faq.md,"{'added': [(567, '7.  Google Play’s policies forbid the malicious use of BLE scanning, and'), (568, '    Play’s rigorous review processes are designed to detect it. Any app'), (569, '    found to be explicitly capturing BLE RPIs will be removed.'), (570, ''), (670, 'For the sake of transparency, we note that this issue was confirmed on a'), (671, 'subset of Android devices globally.  These issues likely resulted from'), (672, 'how certain OEMs have implemented Bluetooth since, for the reasons noted'), (673, 'above, the [Android Compatibility Definition Document](https://source.android.com/compatibility/10/android-10-cdd#7_4_3_bluetooth) (CDD) does not'), (674, 'require rotation in sync.  After extensive testing, a change to EN has'), (675, 'nevertheless been rolled out that removes this opportunity for'), (676, 'device-specific misbehavior with respect to EN for all devices. The RPI'), (677, 'is now set to a globally fixed value for a small number of BLE frames'), (678, 'surrounding the RPI rollover.'), (679, ''), (680, 'As noted above, Google Play’s policies forbid the malicious use of BLE'), (681, 'scanning, and Play’s rigorous review processes are designed to detect'), (682, 'it. Any app found to be explicitly capturing BLE RPIs will be removed.'), (683, '')], 'deleted': [(567, ""7.  Any app capturing BLE RPIs that is detected in Google Play's rigorous""), (568, '    review process would be removed from the Play Store.'), (569, '')]}"
+"fix: [security] missing ACL lookup on attribute correlations
+
+- attribute correlation ACL checks are skipped when querying the attribute restsearch API revealing metadata about a correlating but unreachable attribute.
+
+- Thanks to Jakub Onderka for his tireless work and for reporting this!","{'added': [(1648, '    public function getRelatedAttributes($user, $attribute, $fields=array(), $includeEventData = false)'), (1687, '        $baseConditions = $this->buildConditions($user);'), (1688, ""        $baseConditions['AND'][] = $conditions;""), (1694, ""            'conditions' => $baseConditions,""), (1697, ""            'group' => array('Attribute.id', 'Attribute.event_id', 'Attribute.object_id', 'Attribute.object_relation', 'Attribute.category', 'Attribute.type', 'Attribute.value', 'Attribute.uuid', 'Attribute.timestamp', 'Attribute.distribution', 'Attribute.sharing_group_id', 'Attribute.to_ids', 'Attribute.comment', 'Event.id', 'Event.uuid', 'Event.threat_level_id', 'Event.analysis', 'Event.info', 'Event.extends_uuid', 'Event.distribution', 'Event.sharing_group_id', 'Event.published', 'Event.date', 'Event.orgc_id', 'Event.org_id', 'Object.id', 'Object.uuid', 'Object.distribution', 'Object.name', 'Object.template_uuid', 'Object.distribution', 'Object.sharing_group_id'),""), (1706, '                ),'), (1707, ""                'Object' => array(""), (1708, ""                    'fields' => array(""), (1709, ""                        'Object.id', 'Object.uuid', 'Object.distribution', 'Object.name', 'Object.template_uuid', 'Object.distribution', 'Object.sharing_group_id'""), (1710, '                    )'), (3445, ""                    $results[$k]['Attribute']['RelatedAttribute'] = ($this->getRelatedAttributes($user, $results[$k]['Attribute'], $attributeFields, true));"")], 'deleted': [(1648, '    public function getRelatedAttributes($attribute, $fields=array(), $includeEventData = false)'), (1687, ''), (1693, ""            'conditions' => $conditions,""), (1696, ""            'group' => array('Attribute.event_id'),""), (3439, ""                    $results[$k]['Attribute']['RelatedAttribute'] = ($this->getRelatedAttributes($results[$k]['Attribute'], $attributeFields, true));"")]}"
+"https://github.com/WWBN/AVideo/issues/3117
+Make sure the livelink starts with http","{'added': [(15, 'if (!filter_var($_GET[\'livelink\'], FILTER_VALIDATE_URL) || !preg_match(""/^http.*/i"", $_GET[\'livelink\'])) {')], 'deleted': [(15, 'if (!filter_var($_GET[\'livelink\'], FILTER_VALIDATE_URL) && preg_match(""/^http.*/i"", $_GET[\'livelink\'])) {')]}"
+*changed minutes for milliseconds,"{'added': [(73, '                    .setInitialDelay(executionDelayDays, TimeUnit.MILLISECONDS)')], 'deleted': [(73, '                    .setInitialDelay(executionDelayDays, TimeUnit.MINUTES)')]}"
+chore: fix build config import,"{'added': [(16, 'import es.gob.radarcovid.BuildConfig')], 'deleted': [(18, 'import org.dpppt.android.sdk.BuildConfig')]}"
+chore: Changed ExistingWorkPolicy to REPLACE in fake request worker,"{'added': [(101, '        start(applicationContext, tDummy, ExistingWorkPolicy.REPLACE)')], 'deleted': [(101, '        start(applicationContext, tDummy, ExistingWorkPolicy.APPEND)')]}"
+chore: fix execution delay,"{'added': [(71, '                    .setInitialDelay(executionDelay, TimeUnit.MILLISECONDS)'), (91, '            // only do request if it was planned to do in the last 48h')], 'deleted': [(64, '            val executionDelayDays ='), (65, '                executionDelay / FACTOR_DAY_MILLIS'), (73, '                    .setInitialDelay(executionDelayDays, TimeUnit.MILLISECONDS)')]}"
+*Code fix,"{'added': [(23, 'import kotlin.math.ln'), (115, '            return (newDelayDays * FACTOR_DAY_MILLIS).toLong()'), (126, '            return -ln(1.0 - random.nextDouble())')], 'deleted': [(23, ''), (81, '        //private fun getRandomDelay(): Long = Random.nextLong(180, 360)'), (82, ''), (117, '            return (newDelayDays * FACTOR_DAY_MILLIS) as Long'), (128, '            return -Math.log(1.0 - random.nextDouble())')]}"
+"Admin: Sanitize external links to activated BP component pages.
+
+Props imath.
+See #8235.
+
+git-svn-id: https://buddypress.svn.wordpress.org/trunk@12549 cdf35c40-ae34-48e0-9cc9-0c9da1808c22","{'added': [(148, '\t\t\t\t\t\t\t\t<a href=""<?php echo esc_url( get_permalink( $existing_pages[$name] ) ); ?>"" class=""button-secondary"" target=""_bp""><?php _e( \'View\', \'buddypress\' ); ?></a>')], 'deleted': [(148, '\t\t\t\t\t\t\t\t<a href=""<?php echo get_permalink( $existing_pages[$name] ); ?>"" class=""button-secondary"" target=""_bp""><?php _e( \'View\', \'buddypress\' ); ?></a>')]}"
+"Fix source code disclosure on case-insensitive file systems
+
+If the file system containing the PHP code is case-insensitive, a
+request containing an uppercase file extension will return the
+contents of the PHP file to the browser instead of executing it.
+
+E.g. a request for this URL will return the source code:
+
+  https:/sp.example.org/simplesaml/module.php/core/frontpage_welcome.PHP
+
+Fix that by converting the path to lowercase before checking the file
+extension.
+
+See the following page for details:
+
+  https://github.com/simplesamlphp/simplesamlphp/security/advisories/GHSA-24m3-w8g9-jwpq","{'added': [(262, ""        if (mb_strtolower(substr($path, -4), 'UTF-8') === '.php') {"")], 'deleted': [(262, ""        if (substr($path, -4) === '.php') {"")]}"
+do trim on encodingLength as well,"{'added': [(81, ""  return Buffer.byteLength(n.replace(/^\\.|\\.$/gm, '')) + 2"")], 'deleted': [(81, '  return Buffer.byteLength(n) + 2')]}"
