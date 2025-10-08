@@ -1,9 +1,12 @@
 from git import Repo
 from huggingface_hub import login
-from pathlib import Path, PurePath, PureWindowsPath
+from pathlib import Path
+from sqlite3 import Error
 import argparse
+import difflib
 import json
 import os
+import sqlite3 as lite
 
 import regex as re
 import sys
@@ -13,7 +16,7 @@ import sys
 # Install dependencies in requirements.txt:
 # pip install -r requirements.txt
 
-# TODO: Make sure that the command line input functions similarly to example provided below
+# Bash input in command line:
 # python ./git_screener.py --repo <path|url> --n <commits> --out report.json
 
 
@@ -30,13 +33,35 @@ def check_if_path(repo_string):
     else:
         return False
 
+def create_connection(db_file):
+    """
+    create a connection to sqlite3 database
+    """
+    conn = None
+    try:
+        conn = lite.connect(db_file, timeout=10)  # connection via sqlite3
+        # engine = sa.create_engine('sqlite:///' + db_file)  # connection via sqlalchemy
+        # conn = engine.connect()
+    except Error as e:
+        print(e)
+    return conn
+
+DATA_PATH = Path.cwd().parents[0] / 'Data'
+FIGURE_PATH = Path.cwd() / 'figures'
+RESULT_PATH = Path.cwd() / 'results'
+
+Path(DATA_PATH).mkdir(parents=True, exist_ok=True)
+Path(FIGURE_PATH).mkdir(parents=True, exist_ok=True)
+Path(RESULT_PATH).mkdir(parents=True, exist_ok=True)
+
+conn = create_connection(DATA_PATH / "CVEfixes.db")
 
 
 def threat_analysis(repo_link, n, out):
     # Create a dictionary to store issues found by Llama model (is a defaultdict needed?)
     issue_dict = {}
 
-    # TODO: Extract all relevant commits, messages and diffs from repo
+    # Extract all relevant commits, messages and diffs from repo
     if check_if_path(repo_link):
         repo = Repo(repo_link)
     else:
@@ -49,7 +74,6 @@ def threat_analysis(repo_link, n, out):
 
     commit_messages = [commit.message for commit in last_n_commits]
 
-    # TODO: Properly implement diff extraction
     # TODO: Make sure there are no "out of range" errors!
     n_commit_list = list(repo.iter_commits(all=True))[:n]
     comp_commits = list(repo.iter_commits(all=True))[1:n+1]
@@ -62,14 +86,15 @@ def threat_analysis(repo_link, n, out):
         for diff_item in diff.iter_change_type("M"):
             print("Modified file:\n{}".format(diff_item.a_blob.data_stream.read().decode('utf-8')))
 
-
-    # TODO: Create a good prompt for finding issues (Llama Guard maybe?)
-
     # TODO: Establish connection to Llama 3 without leaking token
 
-    # TODO: Additional layer of safety through entropy or regex
+    # TODO: Finetune the Llama 3 model on the vulnerability data
+
+    # TODO: Create a good prompt for finding issues
 
     # TODO: Add confidence calculation to predictions (built into Llama model?)
+
+    # TODO: Additional layer of safety through entropy or regex
 
     # Save issues from dictionary to JSON file
     # Attributes for each issue: commit hash, file path, line/offset snippet, finding type, confidence
