@@ -1,13 +1,9 @@
 from git import Repo
-from huggingface_hub import login
 from pathlib import Path
-from sqlite3 import Error
 import argparse
 import difflib
 import json
 import os
-import sqlite3 as lite
-
 import regex as re
 import sys
 
@@ -32,29 +28,6 @@ def check_if_path(repo_string):
         return True
     else:
         return False
-
-def create_connection(db_file):
-    """
-    create a connection to sqlite3 database
-    """
-    conn = None
-    try:
-        conn = lite.connect(db_file, timeout=10)  # connection via sqlite3
-        # engine = sa.create_engine('sqlite:///' + db_file)  # connection via sqlalchemy
-        # conn = engine.connect()
-    except Error as e:
-        print(e)
-    return conn
-
-DATA_PATH = Path.cwd().parents[0] / 'Data'
-FIGURE_PATH = Path.cwd() / 'figures'
-RESULT_PATH = Path.cwd() / 'results'
-
-Path(DATA_PATH).mkdir(parents=True, exist_ok=True)
-Path(FIGURE_PATH).mkdir(parents=True, exist_ok=True)
-Path(RESULT_PATH).mkdir(parents=True, exist_ok=True)
-
-conn = create_connection(DATA_PATH / "CVEfixes.db")
 
 
 def threat_analysis(repo_link, n, out):
