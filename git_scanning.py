@@ -1,4 +1,5 @@
 from collections import defaultdict
+from datetime import date
 from git import Repo
 from pathlib import Path
 import argparse
@@ -31,6 +32,93 @@ def check_if_path(repo_string):
     else:
         return False
 
+def llama_prompting(input_data):
+    os.environ["PYTORCH_CUDA_ALLOC_CONF"] = "expandable_segments:True"
+
+    # TODO: Establish connection to Llama 3 without leaking token
+    directory = "/mounts/data/corp/huggingface/"
+    model_name = "meta-llama/Llama-3.1-8B-Instruct"
+    tokenizer = AutoTokenizer.from_pretrained(model_name)
+
+    # Create an LLM instance
+    llm = LLM(dtype="half",
+    model = model_name,
+    tokenizer= model_name,
+    trust_remote_code=True,
+    download_dir=directory,
+    gpu_memory_utilization=0.9,
+    tensor_parallel_size=4,
+    enforce_eager=True,
+    disable_custom_all_reduce=True,
+    max_num_seqs=100,
+    max_model_len=1500
+    )
+
+    responses = []
+
+    # Prompt template definition
+    # Attributes for each issue: commit hash, file path, line/offset snippet, finding type, confidence
+    prompt_template = ("""<|begin_of_text|><|start_header_id|>system<|end_header_id|>
+
+Environment: ipython
+Cutting Knowledge Date: December 2023
+
+You are an expert in composing functions. You are given a question and a set of possible functions.
+Based on the question, you will need to make one or more function/tool calls to achieve the purpose.
+If none of the function can be used, point it out. If the given question lacks the parameters required by the function,
+
+If you decide to invoke any of the function(s), you MUST put it in the format of [func_name1(params_name1=params_value1, params_name2=params_value2...), func_name2(params)]
+You SHOULD NOT include any other text in the response.
+
+Here is a list of functions in JSON format that you can invoke.
+[
+    {
+        "name": "sensitive_data_detection",
+        "description": "Find sensitive data in a commit",
+        "parameters": {
+            "hash": {
+            "param_type": "hex",
+            "description": "Hash number of commit containing sensitive information",
+            "required": true
+            }
+            "file path": {
+            "param_type": "string",
+            "description": "The file containing sensitive information",
+            "required": true
+            }
+            "issue line": {
+            "param_type": "integer",
+            "description": "Line where the found sensitive information starts",
+            "required": true
+            }
+            "sensitive information type": {
+            "param_type": "string",
+            "description": "Type of sensitive information exposed",
+            "required": true
+            }
+            "confidence": {
+            "param_type": "float",
+            "description": "Confidence of this part containing sensitive information",
+            "required": true
+            }
+        }
+    }
+]<|eot_id|><|start_header_id|>user<|end_header_id|>
+Is there any sensitive information exposed in this commit? {text} <|eot_id|><|start_header_id|>assistant<|end_header_id|>""")
+
+    prompts = [prompt_template_prof.format(text=item) for item in input_data.items()]
+
+    # Define additional parameters for prompting
+    sampling_params = SamplingParams(
+    temperature=0.0,
+    max_tokens=20,
+    top_p=1.0,
+    stop=["\n"]
+    )
+
+    result = llm.generate(input_data)
+    return result
+
 
 def threat_analysis(repo_link, n, out):
     # Create a dictionary to store issues found by Llama model (is a defaultdict needed?)
@@ -58,7 +146,6 @@ def threat_analysis(repo_link, n, out):
 
     diffs_to_parent = {a: b.diff(a) for a, b in commit_pairs}
 
-    # TODO: Fix this part
     changed_files = []
     for idx, diff in enumerate(diffs_to_parent):
         files_in_commit = {}
@@ -80,13 +167,11 @@ def threat_analysis(repo_link, n, out):
                 files_in_commit[diff_item.a_rawpath] = diff_item.a_blob.data_stream.read().decode('utf-8')
         changed_files.append(files_in_commit)
 
-    commit_dict = {hexsha: {"msg": message, "changed_files": files_in_commit} for hexsha, message, files_in_commit in zip(hashes, commit_messages, changed_files)}
+    commit_dict = {hexsha: {"message": message, "changed_files": files_in_commit} for hexsha, message, files_in_commit in zip(hashes, commit_messages, changed_files)}
 
-    # TODO: Establish connection to Llama 3 without leaking token
+    responses = llama_prompting(commit_dict.items())
 
-    # TODO: Create a good prompt for finding issues
-
-    # TODO: Add confidence calculation to predictions (built into Llama model?)
+    print(responses)
 
     # TODO: Additional layer of safety through entropy or regex
 
