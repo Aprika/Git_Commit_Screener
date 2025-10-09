@@ -44,15 +44,37 @@ def llama_prompting(input_data):
     # You need a connection token for Llama 3 (gated model)
     # Login with access token using $ hf auth login
     directory = "/mounts/data/corp/huggingface/"
-    model_name = "meta-llama/Llama-3.1-8B"
+    model_name = "meta-llama/Llama-3.1-8B-Instruct"
+
     tokenizer = AutoTokenizer.from_pretrained(model_name)
 
+    # Define a minimal chat template
+    chat_template = (
+        "{% for message in messages %}"
+        "{% if message['role'] == 'system' %}"
+        "<|begin_of_text|><|start_header_id|>system<|end_header_id|>\n{{ message['content'] }}<|eot_id|>"
+        "{% elif message['role'] == 'user' %}"
+        "<|start_header_id|>user<|end_header_id|>\n{{ message['content'] }}<|eot_id|>"
+        "{% elif message['role'] == 'assistant' %}"
+        "<|start_header_id|>assistant<|end_header_id|>\n{{ message['content'] }}<|eot_id|>"
+        "{% endif %}"
+        "{% endfor %}"
+        "<|start_header_id|>assistant<|end_header_id|>\n"
+    )
+
+    tokenizer.chat_template = chat_template
+    print(tokenizer.chat_template)
+
+    # Save the tokenizer (this updates tokenizer_config.json on disk)
+    local_tokenizer_path = os.path.join(directory, "llama3_1_8b_tokenizer_with_chat_template")
+    tokenizer.save_pretrained(local_tokenizer_path)
+
     # Create an LLM instance
-    llm = LLM(dtype="half",
+    llm = LLM(dtype="float16",
               model=model_name,
-              tokenizer=model_name,
+              tokenizer=local_tokenizer_path,
               download_dir=directory,
-              gpu_memory_utilization=0.9,
+              gpu_memory_utilization=0.7,
               tensor_parallel_size=4,
               max_num_seqs=100,
               max_model_len=15000
@@ -60,76 +82,49 @@ def llama_prompting(input_data):
 
     # Prompt template definition
     # Attributes for each issue: commit hash, file path, line/offset snippet, finding type, confidence
-    prompt_template_start = """<|begin_of_text|><|start_header_id|>system<|end_header_id|>
-
-Environment: ipython
-Cutting Knowledge Date: December 2023
-
-You are an expert in composing functions. You are given a question and a set of possible functions.
-Based on the question, you will need to make one or more function/tool calls to achieve the purpose.
-If none of the function can be used, point it out. If the given question lacks the parameters required by the function,
-
-If you decide to invoke any of the function(s), you MUST put it in the format of [func_name1(params_name1=params_value1, params_name2=params_value2...), func_name2(params)]
-You SHOULD NOT include any other text in the response.
-
-Here is a list of functions in JSON format that you can invoke.
-[
-    {
-        "name": "sensitive_data_detection",
-        "description": "Find sensitive data in a commit",
-        "parameters": {
-            "hash": {
-            "param_type": "hex",
-            "description": "Hash number of commit containing sensitive information",
-            "required": true
-            }
-            "file path": {
-            "param_type": "string",
-            "description": "The file containing sensitive information",
-            "required": true
-            }
-            "issue line": {
-            "param_type": "integer",
-            "description": "Line where the found sensitive information starts",
-            "required": true
-            }
-            "sensitive information type": {
-            "param_type": "string",
-            "description": "Type of sensitive information exposed",
-            "required": true
-            }
-            "confidence": {
-            "param_type": "float",
-            "description": "Confidence of this part containing sensitive information",
-            "required": true
-            }
-        }
-    }
-]<|eot_id|><|start_header_id|>user<|end_header_id|>
-Is there any sensitive information exposed in this commit?\n"""
-    prompt_template_end = """ <|eot_id|><|start_header_id|>assistant<|end_header_id|>"""
 
     # commit_dict = {hexsha: {"message": message, "changed_files": files_in_commit} for hexsha, message, files_in_commit in zip(hashes, commit_messages, changed_files)}
-    formatted_input = []
+    results = []
     for hexsha in input_data:
         input_as_string = f"""{hexsha} {input_data[hexsha]["message"]}
             """
         for filename, file_content in input_data[hexsha]["changed_files"].items():
             input_as_string += f"{filename}\n{file_content}"
-        formatted_input.append(input_as_string)
 
-    prompts = [prompt_template_start + item + prompt_template_end for item in formatted_input]
+        conversation = [
+            {"role": "system", "content": """You are a helpful expert in detecting sensitive information in Git repositories. You are given all changed files in a commit.
+Each time you find any sensitive information in a file, extract values of ONLY the following: "hash number", "file path", "line with issue", "sensitive information type" and "confidence of you being right".
+Insert the values in the brackets into each issue in the following Python dictionary format: {"hash": (str), "file_path": (str), "issue_line": int, "info_type": (str), "confidence": (float)}"""},
+            {"role": "user", "content": """e1d1963cba51164273adc68cf23af275 Created e-mail connection function
+e_mail_server.py
+def connect_to_email():
+    email = "user@example.com"
+    password = "emailpassword"
+    smtp_server = "smtp.example.com"
+    smtp_port = 587
+    return f'Email: {email}, Password: {password}, SMTP server: {smtp_server}, SMTP port: {smtp_port}'"""},
+            {"role": "assistant", "content": """[{"hash": "e1d1963cba51164273adc68cf23af275", "file_path": "e_mail_server.py", "issue_line": 2, "info_type": "e-mail", "confidence":0.99},
+{"hash": "e1d1963cba51164273adc68cf23af275", "file_path": "e_mail_server.py", "issue_line": 3, "info_type": "password", "confidence":0.8},
+{"hash": "e1d1963cba51164273adc68cf23af275", "file_path": "e_mail_server.py", "issue_line": 4, "info_type": "url", "confidence":0.6},
+{"hash": "e1d1963cba51164273adc68cf23af275", "file_path": "e_mail_server.py", "issue_line": 5, "info_type": "port", "confidence":0.9}]"""},
+            {
+                "role": "user",
+                "content": input_as_string},
+        ]
 
-    # Define additional parameters for prompting
-    sampling_params = SamplingParams(
-        temperature=0.0,
-        max_tokens=20,
-        top_p=1.0,
-        stop=["\n"]
-    )
-    # TODO: If possible, stop the reports about Llama and CUDA from popping up in the shell
-    results = llm.generate(prompts)
-
+        # Define additional parameters for prompting
+        # top_p=1.0
+        sampling_params = SamplingParams(
+            temperature=0.0,
+            top_p=1.0,
+            max_tokens=1000
+        )
+        # TODO: If possible, stop the reports about Llama and CUDA from popping up in the shell
+        result = llm.chat(conversation, sampling_params=sampling_params, use_tqdm=True)
+        for output in result:
+            string_output = output.outputs[0].text.strip()
+            print(f"String output: {string_output}")
+        results.append(string_output)
     print(f"Results: {results}")
     return results
 
