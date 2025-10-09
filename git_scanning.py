@@ -1,3 +1,4 @@
+from collections import defaultdict
 from git import Repo
 from pathlib import Path
 import argparse
@@ -13,7 +14,7 @@ import sys
 # pip install -r requirements.txt
 
 # Bash input in command line:
-# python ./git_screener.py --repo <path|url> --n <commits> --out report.json
+# python ./git_scanning.py --repo <path|url> --n <commits> --out report.json
 
 
 # Initializing arguments that can be recognized by parser
@@ -45,6 +46,8 @@ def threat_analysis(repo_link, n, out):
     # Storing last n commits from all branches
     last_n_commits = repo.iter_commits(all=True, max_count=n)
 
+    # Extracting the necessary information about each commit in advance
+    hashes = [commit.hexsha for commit in last_n_commits]
     commit_messages = [commit.message for commit in last_n_commits]
 
     # TODO: Make sure there are no "out of range" errors!
@@ -53,15 +56,23 @@ def threat_analysis(repo_link, n, out):
     commit_pairs = list(zip(n_commit_list, comp_commits))
 
     diffs_to_parent = [b.diff(a) for a, b in commit_pairs]
+    # TODO: Fix this part
+    changed_files = []
     for diff in diffs_to_parent:
+        files_in_commit = {}
         for diff_item in diff.iter_change_type("A"):
-            print("Added file:\n{}".format(diff_item.a_blob.data_stream.read().decode('utf-8')))
+            if diff_item.a_blob is not None:
+                files_in_commit[diff_item.a_rawpath] = diff_item.a_blob.data_stream.read().decode('utf-8')
         for diff_item in diff.iter_change_type("M"):
-            print("Modified file:\n{}".format(diff_item.a_blob.data_stream.read().decode('utf-8')))
+            if diff_item.a_blob is not None:
+                files_in_commit[diff_item.a_rawpath] = diff_item.a_blob.data_stream.read().decode('utf-8')
+        changed_files.append(files_in_commit)
+
+    print(changed_files)
+
+    commit_dict = {hexsha: {"msg": message, "changed_files": files_in_commit} for hexsha, message, files_in_commit in zip(hashes, commit_messages, changed_files)}
 
     # TODO: Establish connection to Llama 3 without leaking token
-
-    # TODO: Finetune the Llama 3 model on the vulnerability data
 
     # TODO: Create a good prompt for finding issues
 
