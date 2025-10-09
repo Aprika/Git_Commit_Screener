@@ -29,6 +29,7 @@ parser.add_argument("--repo", type=str, help="Git repository name", required=Tru
 parser.add_argument("--n", type=int, help="Number of commits to be scanned", required=True)
 parser.add_argument("--out", type=str, help="Output json file name", default="report.json")
 
+
 def check_if_path(repo_string):
     # Use RegEx to check if link is a local path (else assumes URL)
     if os.path.exists(os.path.dirname(repo_string)):
@@ -36,29 +37,30 @@ def check_if_path(repo_string):
     else:
         return False
 
+
 def llama_prompting(input_data):
     os.environ["PYTORCH_CUDA_ALLOC_CONF"] = "expandable_segments:True"
 
     # You need a connection token for Llama 3 (gated model)
     # Login with access token using $ hf auth login
     directory = "/mounts/data/corp/huggingface/"
-    model_name = "meta-llama/Llama-3.1-8B-Instruct"
+    model_name = "meta-llama/Llama-3.1-8B"
     tokenizer = AutoTokenizer.from_pretrained(model_name)
 
     # Create an LLM instance
     llm = LLM(dtype="half",
-    model = model_name,
-    tokenizer= model_name,
-    download_dir=directory,
-    gpu_memory_utilization=0.9,
-    tensor_parallel_size=4,
-    max_num_seqs=100,
-    max_model_len=1500
-    )
+              model=model_name,
+              tokenizer=model_name,
+              download_dir=directory,
+              gpu_memory_utilization=0.9,
+              tensor_parallel_size=4,
+              max_num_seqs=100,
+              max_model_len=15000
+              )
 
     # Prompt template definition
     # Attributes for each issue: commit hash, file path, line/offset snippet, finding type, confidence
-    prompt_template = ("""<|begin_of_text|><|start_header_id|>system<|end_header_id|>
+    prompt_template_start = """<|begin_of_text|><|start_header_id|>system<|end_header_id|>
 
 Environment: ipython
 Cutting Knowledge Date: December 2023
@@ -104,22 +106,32 @@ Here is a list of functions in JSON format that you can invoke.
         }
     }
 ]<|eot_id|><|start_header_id|>user<|end_header_id|>
-Is there any sensitive information exposed in this commit? {text} <|eot_id|><|start_header_id|>assistant<|end_header_id|>""")
+Is there any sensitive information exposed in this commit?\n"""
+    prompt_template_end = """ <|eot_id|><|start_header_id|>assistant<|end_header_id|>"""
 
-    prompts = [prompt_template.format(text=item) for item in input_data]
+    # commit_dict = {hexsha: {"message": message, "changed_files": files_in_commit} for hexsha, message, files_in_commit in zip(hashes, commit_messages, changed_files)}
+    formatted_input = []
+    for hexsha in input_data:
+        input_as_string = f"""{hexsha} {input_data[hexsha]["message"]}
+            """
+        for filename, file_content in input_data[hexsha]["changed_files"].items():
+            input_as_string += f"{filename}\n{file_content}"
+        formatted_input.append(input_as_string)
+
+    prompts = [prompt_template_start + item + prompt_template_end for item in formatted_input]
 
     # Define additional parameters for prompting
     sampling_params = SamplingParams(
-    temperature=0.0,
-    max_tokens=20,
-    top_p=1.0,
-    stop=["\n"]
+        temperature=0.0,
+        max_tokens=20,
+        top_p=1.0,
+        stop=["\n"]
     )
-
     # TODO: If possible, stop the reports about Llama and CUDA from popping up in the shell
-    result = llm.generate(input_data)
-    print(result)
-    return result
+    results = llm.generate(prompts)
+
+    print(f"Results: {results}")
+    return results
 
 
 def threat_analysis(repo_link, n, out):
@@ -133,17 +145,13 @@ def threat_analysis(repo_link, n, out):
         cwd = Path.cwd()
         repo = Repo.clone_from(repo_link, cwd.parent / "New_Repo")
 
-    # Debug: Print all selected commits to see what we're working with
-    # Storing last n commits from all branches
-    last_n_commits = repo.iter_commits(all=True, max_count=n)
-
     # Extracting the necessary information about each commit in advance
-    hashes = [commit.hexsha for commit in last_n_commits]
-    commit_messages = [commit.message for commit in last_n_commits]
+    hashes = [commit.hexsha for commit in repo.iter_commits(all=True, max_count=n)]
+    commit_messages = [commit.message for commit in repo.iter_commits(all=True, max_count=n)]
 
     # TODO: Make sure there are no "out of range" errors!
     n_commit_list = list(repo.iter_commits(all=True))[:n]
-    comp_commits = list(repo.iter_commits(all=True))[1:n+1]
+    comp_commits = list(repo.iter_commits(all=True))[1:n + 1]
     commit_pairs = list(zip(n_commit_list, comp_commits))
 
     diffs_to_parent = {a: b.diff(a) for a, b in commit_pairs}
@@ -171,17 +179,18 @@ def threat_analysis(repo_link, n, out):
                 detector.close()
                 file_encoding = detector.result['encoding']
                 if file_encoding is not None:
-                    files_in_commit[diff_item.a_rawpath] = f.read().decode(encoding=file_encoding)
+                    files_in_commit[diff_item.a_rawpath.decode('utf-8')] = f.read().decode(encoding=file_encoding)
         for diff_item in diffs_to_parent[diff].iter_change_type("M"):
             if diff_item.a_blob is not None:
-                files_in_commit[diff_item.a_rawpath] = diff_item.a_blob.data_stream.read().decode('utf-8')
+                files_in_commit[diff_item.a_rawpath.decode('utf-8')] = diff_item.a_blob.data_stream.read().decode(
+                    'utf-8')
         changed_files.append(files_in_commit)
 
-    commit_dict = {hexsha: {"message": message, "changed_files": files_in_commit} for hexsha, message, files_in_commit in zip(hashes, commit_messages, changed_files)}
+    commit_dict = {hexsha: {"message": message, "changed_files": files_in_commit} for hexsha, message, files_in_commit
+                   in zip(hashes, commit_messages, changed_files)}
+    responses = llama_prompting(commit_dict)
 
-    responses = llama_prompting(commit_dict.items())
-
-    print(responses)
+    print(f"Responses: {responses}")
 
     # TODO: Additional layer of safety through entropy or regex
 
