@@ -3,6 +3,7 @@ from git import Repo
 from pathlib import Path
 import argparse
 import difflib
+import io
 import json
 import os
 import regex as re
@@ -55,20 +56,29 @@ def threat_analysis(repo_link, n, out):
     comp_commits = list(repo.iter_commits(all=True))[1:n+1]
     commit_pairs = list(zip(n_commit_list, comp_commits))
 
-    diffs_to_parent = [b.diff(a) for a, b in commit_pairs]
+    diffs_to_parent = {a: b.diff(a) for a, b in commit_pairs}
+
     # TODO: Fix this part
     changed_files = []
-    for diff in diffs_to_parent:
+    for idx, diff in enumerate(diffs_to_parent):
         files_in_commit = {}
-        for diff_item in diff.iter_change_type("A"):
-            if diff_item.a_blob is not None:
-                files_in_commit[diff_item.a_rawpath] = diff_item.a_blob.data_stream.read().decode('utf-8')
-        for diff_item in diff.iter_change_type("M"):
+
+        # Check the correctness of the diff file output
+        change_types = ['A', 'M']
+        changes_by_type = defaultdict(list)
+        for change_type in change_types:
+            changes_of_type = [item for item in diffs_to_parent[diff].iter_change_type(change_type)]
+            changes_by_type[change_type].extend(changes_of_type)
+
+        for diff_item in diffs_to_parent[diff].iter_change_type("A"):
+            decoded_path = diff_item.a_rawpath.decode("utf-8")
+            targetfile = diff.tree / decoded_path
+            with io.BytesIO(targetfile.data_stream.read()) as f:
+                files_in_commit[diff_item.a_rawpath] = f.read().decode("utf-8")
+        for diff_item in diffs_to_parent[diff].iter_change_type("M"):
             if diff_item.a_blob is not None:
                 files_in_commit[diff_item.a_rawpath] = diff_item.a_blob.data_stream.read().decode('utf-8')
         changed_files.append(files_in_commit)
-
-    print(changed_files)
 
     commit_dict = {hexsha: {"msg": message, "changed_files": files_in_commit} for hexsha, message, files_in_commit in zip(hashes, commit_messages, changed_files)}
 
