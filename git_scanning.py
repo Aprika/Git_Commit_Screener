@@ -1,7 +1,10 @@
+from chardet.universaldetector import UniversalDetector
 from collections import defaultdict
 from datetime import date
 from git import Repo
 from pathlib import Path
+from transformers import AutoTokenizer
+from vllm import LLM, SamplingParams
 import argparse
 import difflib
 import io
@@ -9,6 +12,7 @@ import json
 import os
 import regex as re
 import sys
+import torch
 
 # TODO: To create requirements.txt
 # pip freeze > requirements.txt
@@ -35,7 +39,8 @@ def check_if_path(repo_string):
 def llama_prompting(input_data):
     os.environ["PYTORCH_CUDA_ALLOC_CONF"] = "expandable_segments:True"
 
-    # TODO: Establish connection to Llama 3 without leaking token
+    # You need a connection token for Llama 3 (gated model)
+    # Login with access token using $ hf auth login
     directory = "/mounts/data/corp/huggingface/"
     model_name = "meta-llama/Llama-3.1-8B-Instruct"
     tokenizer = AutoTokenizer.from_pretrained(model_name)
@@ -44,17 +49,12 @@ def llama_prompting(input_data):
     llm = LLM(dtype="half",
     model = model_name,
     tokenizer= model_name,
-    trust_remote_code=True,
     download_dir=directory,
     gpu_memory_utilization=0.9,
     tensor_parallel_size=4,
-    enforce_eager=True,
-    disable_custom_all_reduce=True,
     max_num_seqs=100,
     max_model_len=1500
     )
-
-    responses = []
 
     # Prompt template definition
     # Attributes for each issue: commit hash, file path, line/offset snippet, finding type, confidence
@@ -106,7 +106,7 @@ Here is a list of functions in JSON format that you can invoke.
 ]<|eot_id|><|start_header_id|>user<|end_header_id|>
 Is there any sensitive information exposed in this commit? {text} <|eot_id|><|start_header_id|>assistant<|end_header_id|>""")
 
-    prompts = [prompt_template_prof.format(text=item) for item in input_data.items()]
+    prompts = [prompt_template.format(text=item) for item in input_data]
 
     # Define additional parameters for prompting
     sampling_params = SamplingParams(
@@ -116,7 +116,9 @@ Is there any sensitive information exposed in this commit? {text} <|eot_id|><|st
     stop=["\n"]
     )
 
+    # TODO: If possible, stop the reports about Llama and CUDA from popping up in the shell
     result = llm.generate(input_data)
+    print(result)
     return result
 
 
@@ -158,10 +160,18 @@ def threat_analysis(repo_link, n, out):
             changes_by_type[change_type].extend(changes_of_type)
 
         for diff_item in diffs_to_parent[diff].iter_change_type("A"):
-            decoded_path = diff_item.a_rawpath.decode("utf-8")
+            decoded_path = diff_item.a_rawpath.decode(encoding='utf-8')
             targetfile = diff.tree / decoded_path
+            # Since there have been issues with correct encoding, introducing the Universal Encoding Detector
+            detector = UniversalDetector()
             with io.BytesIO(targetfile.data_stream.read()) as f:
-                files_in_commit[diff_item.a_rawpath] = f.read().decode("utf-8")
+                for line in f:
+                    detector.feed(line)
+                    if detector.done: break
+                detector.close()
+                file_encoding = detector.result['encoding']
+                if file_encoding is not None:
+                    files_in_commit[diff_item.a_rawpath] = f.read().decode(encoding=file_encoding)
         for diff_item in diffs_to_parent[diff].iter_change_type("M"):
             if diff_item.a_blob is not None:
                 files_in_commit[diff_item.a_rawpath] = diff_item.a_blob.data_stream.read().decode('utf-8')
