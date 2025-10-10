@@ -1,3 +1,4 @@
+from chardet import detect
 from chardet.universaldetector import UniversalDetector
 from collections import defaultdict
 from datetime import date
@@ -177,8 +178,10 @@ def threat_analysis(repo_link, n, out):
                     files_in_commit[diff_item.a_rawpath.decode('utf-8')] = f.read().decode(encoding=file_encoding)
         for diff_item in diffs_to_parent[diff].iter_change_type("M"):
             if diff_item.a_blob is not None:
-                files_in_commit[diff_item.a_rawpath.decode('utf-8')] = diff_item.a_blob.data_stream.read().decode(
-                    'utf-8')
+                file_encoding = detect(diff_item.a_blob.data_stream.read())["encoding"]
+                if file_encoding is not None:
+                    files_in_commit[diff_item.a_rawpath.decode('utf-8')] = diff_item.a_blob.data_stream.read().decode(
+                        file_encoding)
         changed_files.append(files_in_commit)
 
     commit_dict = {hexsha: {"message": message, "changed_files": files_in_commit} for hexsha, message, files_in_commit
