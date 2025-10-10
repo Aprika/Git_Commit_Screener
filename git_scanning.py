@@ -1,19 +1,15 @@
 from chardet import detect
 from chardet.universaldetector import UniversalDetector
 from collections import defaultdict
-from datetime import date
 from git import Repo
 from pathlib import Path
 from transformers import AutoTokenizer
 from vllm import LLM, SamplingParams
 import argparse
-import difflib
 import io
 import json
 import os
-import regex as re
 import sys
-import torch
 
 # TODO: To create requirements.txt
 # pip freeze > requirements.txt
@@ -23,6 +19,14 @@ import torch
 # Bash input in command line:
 # python ./git_scanning.py --repo <path|url> --n <commits> --out report.json
 
+os.environ["PYTORCH_CUDA_ALLOC_CONF"] = "expandable_segments:True"
+
+# You need a connection token for Llama 3 (gated model)
+# Login with access token using $ hf auth login
+directory = "/mounts/data/corp/huggingface/"
+model_name = "meta-llama/Llama-3.1-8B-Instruct"
+
+tokenizer = AutoTokenizer.from_pretrained(model_name)
 
 # Initializing arguments that can be recognized by parser
 parser = argparse.ArgumentParser()
@@ -39,16 +43,11 @@ def check_if_path(repo_string):
         return False
 
 
+def estimate_tokens(text: str) -> int:
+    return len(text.split())
+
+
 def llama_prompting(input_data):
-    os.environ["PYTORCH_CUDA_ALLOC_CONF"] = "expandable_segments:True"
-
-    # You need a connection token for Llama 3 (gated model)
-    # Login with access token using $ hf auth login
-    directory = "/mounts/data/corp/huggingface/"
-    model_name = "meta-llama/Llama-3.1-8B-Instruct"
-
-    tokenizer = AutoTokenizer.from_pretrained(model_name)
-
     # Define a minimal chat template
     chat_template = (
         "{% for message in messages %}"
@@ -81,51 +80,61 @@ def llama_prompting(input_data):
               max_model_len=15000
               )
 
+    system_prompt = """You are an experienced debugger looking through the commits in your team's private repository. Your task is to find lines in commits where someone might have exposed sensitive information and flag their type so that it does not become public. 
+Each finding should be a JSON object with these fields: hash, file_path, issue_line, info_type, confidence.
+
+Format your output as a JSON array.
+If you find no sensitive information, return an empty array: [].
+
+Format each issue like this example (you may change values as needed)
+[{"hash": "abc123", "file_path": "example.py", "issue_line": 10, "info_type": "password", "confidence": 0.9}]
+
+If unsure about a value, make your best guess and adjust the confidence score accordingly."""
+    # Define additional parameters for prompting
+    sampling_params = SamplingParams(
+        temperature=0.0,
+        top_p=1.0,
+        max_tokens=1000
+    )
+
+    sys_length = estimate_tokens(system_prompt)
+    print(f"System length: {system_prompt}")
     # Prompt template definition
     # Attributes for each issue: commit hash, file path, line/offset snippet, finding type, confidence
 
     # commit_dict = {hexsha: {"message": message, "changed_files": files_in_commit} for hexsha, message, files_in_commit in zip(hashes, commit_messages, changed_files)}
     results = []
+    formatted_files = []
+    free_length = 10000 - 1000 - sys_length  # Set aside 1000 for input header
+
     for hexsha in input_data:
-        input_as_string = f"""{hexsha} {input_data[hexsha]["message"]}
-            """
+        input_header = f"Hash: {hexsha}\n{input_data[hexsha]["message"]}\n"
         for filename, file_content in input_data[hexsha]["changed_files"].items():
-            input_as_string += f"{filename}\n{file_content}"
+            file_length = estimate_tokens(file_content)
+            # Try to keep to the model's sequence length limit of 13 1072 tokens: ideally stay under 10 000
+            if (file_length // free_length == 0) or (
+                    file_length // free_length == 1 and file_length % free_length == 0):
+                formatted_files.append(f"{input_header}File name: {filename}\n{file_content}")
+                content = ""
+            else:
+                indexes = range(0, file_length, free_length)
+                substrings = [" ".join(file_content.split()[start:end]) for start, end in
+                              zip([0] + indices, indices + [None])]
+                print(substrings)
+                formatted_files.extend(substrings)
 
-        conversation = [
-            {"role": "system", "content": """You are a helpful expert in detecting sensitive information in Git repositories. You are given all changed files in a commit.
-Each time you find any sensitive information in a file, extract values of ONLY the following: "hash number", "file path", "line with issue", "sensitive information type" and "confidence of you being right".
-Insert the values in the brackets into each issue in the following Python dictionary format: {"hash": (str), "file_path": (str), "issue_line": int, "info_type": (str), "confidence": (float)}"""},
-            {"role": "user", "content": """e1d1963cba51164273adc68cf23af275 Created e-mail connection function
-e_mail_server.py
-def connect_to_email():
-    email = "user@example.com"
-    password = "emailpassword"
-    smtp_server = "smtp.example.com"
-    smtp_port = 587
-    return f'Email: {email}, Password: {password}, SMTP server: {smtp_server}, SMTP port: {smtp_port}'"""},
-            {"role": "assistant", "content": """[{"hash": "e1d1963cba51164273adc68cf23af275", "file_path": "e_mail_server.py", "issue_line": 2, "info_type": "e-mail", "confidence":0.99},
-{"hash": "e1d1963cba51164273adc68cf23af275", "file_path": "e_mail_server.py", "issue_line": 3, "info_type": "password", "confidence":0.8},
-{"hash": "e1d1963cba51164273adc68cf23af275", "file_path": "e_mail_server.py", "issue_line": 4, "info_type": "url", "confidence":0.6},
-{"hash": "e1d1963cba51164273adc68cf23af275", "file_path": "e_mail_server.py", "issue_line": 5, "info_type": "port", "confidence":0.9}]"""},
-            {
-                "role": "user",
-                "content": input_as_string},
-        ]
+        for f_file in formatted_files:
+            conversation = [
+                {"role": "system", "content": system_prompt},
+                {"role": "user", "content": f_file}
+            ]
 
-        # Define additional parameters for prompting
-        # top_p=1.0
-        sampling_params = SamplingParams(
-            temperature=0.0,
-            top_p=1.0,
-            max_tokens=1000
-        )
-        # TODO: If possible, stop the reports about Llama and CUDA from popping up in the shell
-        result = llm.chat(conversation, sampling_params=sampling_params, use_tqdm=True)
-        for output in result:
-            string_output = output.outputs[0].text.strip()
-            print(f"String output: {string_output}")
-        results.append(string_output)
+            # TODO: If possible, stop the reports about Llama and CUDA from popping up in the shell
+            result = llm.chat(conversation, sampling_params=sampling_params, use_tqdm=True)
+            for output in result:
+                string_output = output.outputs[0].text.strip()
+                print(f"String output: {string_output}")
+            results.append(string_output)
     print(f"Results: {results}")
     return results
 
