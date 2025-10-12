@@ -10,6 +10,7 @@ import io
 import json
 import os
 import sys
+import torch
 
 # TODO: To create requirements.txt
 # pip freeze > requirements.txt
@@ -19,23 +20,19 @@ import sys
 # Bash input in command line:
 # python ./git_scanning.py --repo <path|url> --n <commits> --out report.json
 
-os.environ["PYTORCH_CUDA_ALLOC_CONF"] = "expandable_segments:True"
+system_prompt = """You are a experienced debugger looking through the commits in your team's private repository. Your task is to find lines in commits where someone might have exposed sensitive information and flag their type so that it does not become public. 
+Each finding should be a JSON object with these fields: hash, file_path, issue_line, info_type, confidence.
 
-# You need a connection token for Llama 3 (gated model)
-# Login with access token using $ hf auth login
-directory = "/mounts/data/corp/huggingface/"
-model_name = "meta-llama/Llama-3.1-8B-Instruct"
+Format your output as a JSON array.
+If you find no sensitive information, return an empty array: [].
 
-tokenizer = AutoTokenizer.from_pretrained(model_name)
+Format each issue like this example (you may change values as needed)
+[{"hash": "abc123", "file_path": "example.py", "issue_line": 10, "info_type": "password", "confidence": 0.9}]
 
-# Initializing arguments that can be recognized by parser
-parser = argparse.ArgumentParser()
-parser.add_argument("--repo", type=str, help="Git repository name", required=True)
-parser.add_argument("--n", type=int, help="Number of commits to be scanned", required=True)
-parser.add_argument("--out", type=str, help="Output json file name", default="report.json")
+If unsure about a value, make your best guess and adjust the confidence score accordingly."""
 
 
-def check_if_path(repo_string):
+def check_if_path(repo_string: str) -> bool:
     # Use RegEx to check if link is a local path (else assumes URL)
     if os.path.exists(os.path.dirname(repo_string)):
         return True
@@ -44,31 +41,30 @@ def check_if_path(repo_string):
 
 
 def estimate_tokens(text: str) -> int:
-    return len(text.split())
+    return round(len(text) / 3)
 
 
-def llama_prompting(input_data):
-    # Define a minimal chat template
-    chat_template = (
-        "{% for message in messages %}"
-        "{% if message['role'] == 'system' %}"
-        "<|begin_of_text|><|start_header_id|>system<|end_header_id|>\n{{ message['content'] }}<|eot_id|>"
-        "{% elif message['role'] == 'user' %}"
-        "<|start_header_id|>user<|end_header_id|>\n{{ message['content'] }}<|eot_id|>"
-        "{% elif message['role'] == 'assistant' %}"
-        "<|start_header_id|>assistant<|end_header_id|>\n{{ message['content'] }}<|eot_id|>"
-        "{% endif %}"
-        "{% endfor %}"
-        "<|start_header_id|>assistant<|end_header_id|>\n"
-    )
+def chunking(file_text: str, header: str) -> list:
+    sys_length = estimate_tokens(system_prompt)
+    print(f"System length: {system_prompt}")
+    free_length = 3000 - 1000 - sys_length  # Set aside 1000 for input header
 
-    tokenizer.chat_template = chat_template
-    print(tokenizer.chat_template)
+    chunks = []
+    file_length = estimate_tokens(file_text)
+    # Try to keep to the model's sequence length limit of 13 1072 tokens: ideally stay under 10 000
+    if (file_length // free_length == 0) or (file_length // free_length == 1 and file_length % free_length == 0):
+        chunks.append(f"{header}{file_text}")
 
-    # Save the tokenizer (this updates tokenizer_config.json on disk)
-    local_tokenizer_path = os.path.join(directory, "llama3_1_8b_tokenizer_with_chat_template")
-    tokenizer.save_pretrained(local_tokenizer_path)
+    else:
+        indices = list(range(0, file_length, free_length))
+        substrings = [header + " ".join(file_text.split()[start:end]) for start, end in
+                      zip([0] + indices, indices + [None])]
+        # print(f"Chunk: {substrings}")
+        chunks.extend(substrings)
+    return chunks
 
+
+def llama_prompting(input_data: dict) -> list:
     # Create an LLM instance
     llm = LLM(dtype="float16",
               model=model_name,
@@ -80,16 +76,6 @@ def llama_prompting(input_data):
               max_model_len=15000
               )
 
-    system_prompt = """You are an experienced debugger looking through the commits in your team's private repository. Your task is to find lines in commits where someone might have exposed sensitive information and flag their type so that it does not become public. 
-Each finding should be a JSON object with these fields: hash, file_path, issue_line, info_type, confidence.
-
-Format your output as a JSON array.
-If you find no sensitive information, return an empty array: [].
-
-Format each issue like this example (you may change values as needed)
-[{"hash": "abc123", "file_path": "example.py", "issue_line": 10, "info_type": "password", "confidence": 0.9}]
-
-If unsure about a value, make your best guess and adjust the confidence score accordingly."""
     # Define additional parameters for prompting
     sampling_params = SamplingParams(
         temperature=0.0,
@@ -97,49 +83,40 @@ If unsure about a value, make your best guess and adjust the confidence score ac
         max_tokens=1000
     )
 
-    sys_length = estimate_tokens(system_prompt)
-    print(f"System length: {system_prompt}")
     # Prompt template definition
     # Attributes for each issue: commit hash, file path, line/offset snippet, finding type, confidence
-
     # commit_dict = {hexsha: {"message": message, "changed_files": files_in_commit} for hexsha, message, files_in_commit in zip(hashes, commit_messages, changed_files)}
     results = []
     formatted_files = []
-    free_length = 10000 - 1000 - sys_length  # Set aside 1000 for input header
 
     for hexsha in input_data:
         input_header = f"Hash: {hexsha}\n{input_data[hexsha]["message"]}\n"
         for filename, file_content in input_data[hexsha]["changed_files"].items():
-            file_length = estimate_tokens(file_content)
-            # Try to keep to the model's sequence length limit of 13 1072 tokens: ideally stay under 10 000
-            if (file_length // free_length == 0) or (
-                    file_length // free_length == 1 and file_length % free_length == 0):
-                formatted_files.append(f"{input_header}File name: {filename}\n{file_content}")
-                content = ""
-            else:
-                indexes = range(0, file_length, free_length)
-                substrings = [" ".join(file_content.split()[start:end]) for start, end in
-                              zip([0] + indices, indices + [None])]
-                print(substrings)
-                formatted_files.extend(substrings)
+            file_header = input_header + f"File name: {filename}\n"
+            file_chunks = chunking(file_content, file_header)
+            formatted_files.extend(file_chunks)
 
-        for f_file in formatted_files:
-            conversation = [
-                {"role": "system", "content": system_prompt},
-                {"role": "user", "content": f_file}
-            ]
+    for f_file in formatted_files:
+        print(f"\n\nCurrently processed chunk: {f_file}\n")
+        print(f"Estimated length of chunk: {estimate_tokens(f_file)}")
 
-            # TODO: If possible, stop the reports about Llama and CUDA from popping up in the shell
-            result = llm.chat(conversation, sampling_params=sampling_params, use_tqdm=True)
-            for output in result:
-                string_output = output.outputs[0].text.strip()
-                print(f"String output: {string_output}")
-            results.append(string_output)
+        conversation = [
+            {"role": "system", "content": system_prompt},
+            {"role": "user", "content": f_file}
+        ]
+
+        # TODO: If possible, stop the reports about Llama and CUDA from popping up in the shell
+        result = llm.chat(conversation, sampling_params=sampling_params, use_tqdm=True)
+        for output in result:
+            string_output = output.outputs[0].text.strip()
+            print(f"String output: {string_output}")
+        results.append(string_output)
+
     print(f"Results: {results}")
     return results
 
 
-def threat_analysis(repo_link, n, out):
+def threat_analysis(repo_link: str, n: int, out: str) -> None:
     # Create a dictionary to store issues found by Llama model (is a defaultdict needed?)
     issue_dict = {}
 
@@ -199,15 +176,55 @@ def threat_analysis(repo_link, n, out):
 
     print(f"Responses: {responses}")
 
-    # TODO: Additional layer of safety through entropy or regex
+    # TODO: Additional layer of consistency through entropy or regex
 
     # Save issues from dictionary to JSON file
     # Attributes for each issue: commit hash, file path, line/offset snippet, finding type, confidence
-    json.dump(issue_dict, open(out, "w"), indent=4)
+    json.dump(responses, open(out, "w"), indent=4)
 
 
 if __name__ == "__main__":
+    # Memory cleanup
+    torch.cuda.empty_cache()
+    torch.cuda.reset_peak_memory_stats()
+    torch.cuda.ipc_collect()
+
     # TODO: Make sure that the inputs provided by user cannot break the program (Error messages to catch cases and ask to try again?)
+    os.environ["PYTORCH_CUDA_ALLOC_CONF"] = "expandable_segments:True"
+
+    # You need a connection token for Llama 3 (gated model)
+    # Login with access token using $ hf auth login
+    directory = "/mounts/data/corp/huggingface/"
+    model_name = "meta-llama/Llama-3.1-8B-Instruct"
+
+    tokenizer = AutoTokenizer.from_pretrained(model_name)
+
+    # Define a minimal chat template
+    chat_template = (
+        "{% for message in messages %}"
+        "{% if message['role'] == 'system' %}"
+        "<|begin_of_text|><|start_header_id|>system<|end_header_id|>\n{{ message['content'] }}<|eot_id|>"
+        "{% elif message['role'] == 'user' %}"
+        "<|start_header_id|>user<|end_header_id|>\n{{ message['content'] }}<|eot_id|>"
+        "{% elif message['role'] == 'assistant' %}"
+        "<|start_header_id|>assistant<|end_header_id|>\n{{ message['content'] }}<|eot_id|>"
+        "{% endif %}"
+        "{% endfor %}"
+        "<|start_header_id|>assistant<|end_header_id|>\n"
+    )
+
+    tokenizer.chat_template = chat_template
+
+    # Save the tokenizer (this updates tokenizer_config.json on disk)
+    local_tokenizer_path = os.path.join(directory, "llama3_1_8b_tokenizer_with_chat_template")
+    tokenizer.save_pretrained(local_tokenizer_path)
+
+    # Initializing arguments that can be recognized by parser
+    parser = argparse.ArgumentParser()
+    parser.add_argument("--repo", type=str, help="Git repository name", required=True)
+    parser.add_argument("--n", type=int, help="Number of commits to be scanned", required=True)
+    parser.add_argument("--out", type=str, help="Output json file name", default="report.json")
+
     # Parse all arguments entered in command line
     args = parser.parse_args(sys.argv[1:])
     threat_analysis(args.repo, args.n, args.out)
