@@ -19,3 +19,6 @@ python ./git_scanning.py --repo <path|url> --n <commits> --out report.json
 # Example
 python ./git_scanning.py --repo 'https://github.com/Aprika/Git_Commit_Screener' --n 2 --out report.json  # Clones this repository in the parent folder of the working directory under name "New_Repo"
 ```
+
+# Optional feature for using GPU of Linux-powered remote servers
+bash model_run.slurm
