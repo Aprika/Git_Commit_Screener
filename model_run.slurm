@@ -19,7 +19,7 @@ mkdir -p "$TMPDIR"
 
 cleanup() {
   echo "Cleaning up before exit..."
-  rm -rf "$ORIGDIR/New_Repo*"
+  rm -rf $ORIGDIR/New_Repo_*
   rm -rf $TMPDIR
 }
 

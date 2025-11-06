@@ -9,11 +9,13 @@ import argparse
 import io
 import json
 import os
+import re
 import sys
 import torch
 import uuid
 
 RANDOM_STRING_SEQ = str(uuid.uuid4()).replace('-', '')[:8]
+json_pattern = re.compile(r'^\s*\{[\s\S]*?\}\s*$')
 
 # TODO: To create requirements.txt
 # pip freeze > requirements.txt
@@ -113,7 +115,16 @@ def llama_prompting(input_data: dict) -> list:
         for output in result:
             string_output = output.outputs[0].text.strip()
             print(f"String output: {string_output}")
-        results.append(string_output)
+
+            # TODO: Additional layer of consistency through regex
+            extract_json = json_pattern.findall(string_output)
+
+            # Save issues from dictionary to JSON file
+            # Attributes for each issue: commit hash, file path, line/offset snippet, finding type, confidence
+            for match in extract_json:
+                to_object = json.loads(match)
+                print(to_object)
+                results.append(to_object)
 
     print(f"Results: {results}")
     return results
@@ -182,11 +193,8 @@ def threat_analysis(repo_link: str, n: int, out: str) -> None:
 
     print(f"Responses: {responses}")
 
-    # TODO: Additional layer of consistency through regex
-
-    # Save issues from dictionary to JSON file
-    # Attributes for each issue: commit hash, file path, line/offset snippet, finding type, confidence
-    json.dump(responses, open(out, "w"), indent=4)
+    with open(out, "w") as f:
+        json.dump(responses, open(f, "w"), indent=4)
 
 
 if __name__ == "__main__":
