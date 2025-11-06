@@ -11,6 +11,9 @@ import json
 import os
 import sys
 import torch
+import uuid
+
+RANDOM_STRING_SEQ = str(uuid.uuid4()).replace('-', '')[:8]
 
 # TODO: To create requirements.txt
 # pip freeze > requirements.txt
@@ -33,7 +36,7 @@ If unsure about a value, make your best guess and adjust the confidence score ac
 
 
 def check_if_path(repo_string: str) -> bool:
-    # Use RegEx to check if link is a local path (else assumes URL)
+    # Check if link is a local path (else assumes URL)
     if os.path.exists(os.path.dirname(repo_string)):
         return True
     else:
@@ -73,7 +76,7 @@ def llama_prompting(input_data: dict) -> list:
               gpu_memory_utilization=0.7,
               tensor_parallel_size=4,
               max_num_seqs=100,
-              max_model_len=15000
+              max_model_len=15000,
               )
 
     # Define additional parameters for prompting
@@ -121,11 +124,14 @@ def threat_analysis(repo_link: str, n: int, out: str) -> None:
     issue_dict = {}
 
     # Extract all relevant commits, messages and diffs from repo
+    cwd = Path.cwd()
+    repo_name = cwd.parent / f"New_Repo_{RANDOM_STRING_SEQ}"
     if check_if_path(repo_link):
         repo = Repo(repo_link)
+    elif os.path.isdir(repo_name):
+        repo = Repo(repo_name)
     else:
-        cwd = Path.cwd()
-        repo = Repo.clone_from(repo_link, cwd.parent / "New_Repo")
+        repo = Repo.clone_from(repo_link, cwd.parent / f"New_Repo_{RANDOM_STRING_SEQ}")
 
     # Extracting the necessary information about each commit in advance
     hashes = [commit.hexsha for commit in repo.iter_commits(all=True, max_count=n)]
@@ -176,7 +182,7 @@ def threat_analysis(repo_link: str, n: int, out: str) -> None:
 
     print(f"Responses: {responses}")
 
-    # TODO: Additional layer of consistency through entropy or regex
+    # TODO: Additional layer of consistency through regex
 
     # Save issues from dictionary to JSON file
     # Attributes for each issue: commit hash, file path, line/offset snippet, finding type, confidence
@@ -189,8 +195,8 @@ if __name__ == "__main__":
     torch.cuda.reset_peak_memory_stats()
     torch.cuda.ipc_collect()
 
-    # TODO: Make sure that the inputs provided by user cannot break the program (Error messages to catch cases and ask to try again?)
-    os.environ["PYTORCH_CUDA_ALLOC_CONF"] = "expandable_segments:True"
+    # CPU settings
+    device = "cuda" if torch.cuda.is_available() else "cpu"
 
     # You need a connection token for Llama 3 (gated model)
     # Login with access token using $ hf auth login
