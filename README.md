@@ -20,7 +20,8 @@ python ./git_scanning.py --repo <path|url> --n <commits> --out report.json
 python ./git_scanning.py --repo 'https://github.com/Aprika/Git_Commit_Screener' --n 2 --out report.json  # Clones this repository in the parent folder of the working directory under name "New_Repo"
 ```
 
-# Optional feature for using GPU of Linux-powered remote servers
+# Optional feature for using GPU from Linux-powered remote servers
+Line 39 of model_run.slurm contains placeholder values for the repository source and number of commits. Replace them with your values and run the following code in the terminal:
 ```
 bash model_run.slurm
 ```
