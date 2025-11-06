@@ -21,4 +21,6 @@ python ./git_scanning.py --repo 'https://github.com/Aprika/Git_Commit_Screener' 
 ```
 
 # Optional feature for using GPU of Linux-powered remote servers
+```
 bash model_run.slurm
+```
